@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Render .glb with Three.js</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        var scene, camera, renderer;
+        var prevMouseX = 0;
+        var prevMouseY = 0;
+        var moveForward = false;
+        var moveBackward = false;
+        var moveLeft = false;
+        var moveRight = false;
+
+        init();
+        animate();
+
+        function init() {
+            // Inisialisasi scene, kamera, dan renderer
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Load model
+            var loader = new THREE.GLTFLoader();
+            loader.load('./pikachu.glb', function(gltf) {
+                scene.add(gltf.scene);
+            });
+            loader.load('./church_floor.glb', function(gltf) {
+                scene.add(gltf.scene);
+            });
+
+            // Pencahayaan
+            var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            // Event listener untuk menggerakkan kamera
+            var onMouseMove = function(event) {
+                var movementX = event.clientX - prevMouseX;
+                var movementY = event.clientY - prevMouseY;
+
+                camera.rotation.y -= movementX * 0.002;
+                camera.rotation.x -= movementY * 0.002;
+
+                // Batasi sudut pandang kamera agar tidak bisa melihat ke atas atau ke bawah secara berlebihan
+                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+
+                prevMouseX = event.clientX;
+                prevMouseY = event.clientY;
+            };
+
+            var onKeyDown = function(event) {
+                switch (event.keyCode) {
+                    case 87: // W
+                        moveForward = true;
+                        break;
+                    case 65: // A
+                        moveLeft = true;
+                        break;
+                    case 83: // S
+                        moveBackward = true;
+                        break;
+                    case 68: // D
+                        moveRight = true;
+                        break;
+                }
+            };
+
+            var onKeyUp = function(event) {
+                switch (event.keyCode) {
+                    case 87: // W
+                        moveForward = false;
+                        break;
+                    case 65: // A
+                        moveLeft = false;
+                        break;
+                    case 83: // S
+                        moveBackward = false;
+                        break;
+                    case 68: // D
+                        moveRight = false;
+                        break;
+                }
+            };
+
+            window.addEventListener('mousemove', onMouseMove, false);
+            window.addEventListener('keydown', onKeyDown, false);
+            window.addEventListener('keyup', onKeyUp, false);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Dapatkan vektor gerakan kamera berdasarkan rotasi kamera
+            var moveVector = new THREE.Vector3();
+            camera.getWorldDirection(moveVector);
+
+            // Hapus komponen vertikal dari vektor gerakan
+            moveVector.y = 0;
+            moveVector.normalize();
+
+            // Gerakkan kamera berdasarkan input
+            if (moveForward) camera.position.add(moveVector);
+            if (moveBackward) camera.position.sub(moveVector);
+            if (moveLeft) camera.position.add(moveVector.clone().cross(camera.up).negate());
+            if (moveRight) camera.position.add(moveVector.clone().cross(camera.up));
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
