@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>My first Three.js app</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+
+  <body>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.132.2/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module">
+      import * as THREE from "three";
+      import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
+
+      // Create a scene
+      const scene = new THREE.Scene();
+
+      // Create a camera
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      camera.position.z = 5;
+
+      // Create a renderer
+      const renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Create a plane geometry for the ground
+      const geometry = new THREE.PlaneGeometry(100, 100);
+
+      // Load the ground texture
+      const textureLoader = new THREE.TextureLoader();
+      const groundTexture = textureLoader.load(
+        "./minecraft/src/images/dirt.jpg"
+      ); // replace with your texture path
+      groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+      groundTexture.repeat.set(100, 100);
+
+      // Create a material for the ground
+      const material = new THREE.MeshStandardMaterial({ map: groundTexture });
+
+      // Create a mesh for the ground
+      const ground = new THREE.Mesh(geometry, material);
+      ground.rotation.x = -Math.PI / 2;
+      scene.add(ground);
+
+      // Create a player
+      const playerGeometry = new THREE.SphereGeometry(1, 32, 32);
+      const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+      const player = new THREE.Mesh(playerGeometry, playerMaterial);
+      player.position.y = 2;
+      scene.add(player);
+
+      // Add controls
+      const controls = new PointerLockControls(camera, document.body);
+
+      // Animate the scene
+      function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      }
+      animate();
+    </script>
+  </body>
+</html>
+
+<!-- minecraft/src/components/Cube.jsx minecraft/src/components/Cubes.jsx minecraft/src/components/FPV.jsx minecraft/src/components/Ground.jsx minecraft/src/components/Menu.jsx minecraft/src/components/Player.jsx minecraft/src/components/TextureSelector.jsx -->

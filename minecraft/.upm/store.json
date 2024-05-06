@@ -1,0 +1,1 @@
+{"version":2,"languages":{"nodejs-npm":{"specfileHash":"e93a72b972aeb2d3c94c07d7f92dcb77","lockfileHash":"ec35982f4c7052ee0a72c7212ebe6062","guessedImports":["@react-three/cannon","@react-three/drei","react-dom","zustand","nanoid","@react-three/fiber","react","vite","@vitejs/plugin-react","three"],"guessedImportsHash":"02c810c140f31e41150792e65138543d"}}}
