@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Three JS</title>
+  <style> 
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: white; /* Mengatur latar belakang putih */
+    }
+  </style>
+</head>
+<body>
+  <canvas id="myCanvas"></canvas>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/104/three.js"></script>
+  <script src="GLTFLoader.js"></script>
+  <script>
+    // Scene
+    var scene = new THREE.Scene();
+
+    // Camera
+    var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 50);
+
+    // Canvas
+    var myCanvas = document.getElementById('myCanvas');
+
+    // Renderer
+    var renderer = new THREE.WebGLRenderer({ antialias: true, canvas: myCanvas });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0xffffff);
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Mengatur jenis shadow map
+
+    document.body.appendChild(renderer.domElement);
+
+    // Lights
+	var light = new THREE.DirectionalLight(0xffffff, 3);
+	light.position.set(-10, 0, 0);
+	light.castShadow = true; // Aktifkan penempatan bayangan
+	scene.add(light);
+
+    // Instantiate a loader
+    var loader = new THREE.GLTFLoader();
+	loader.load('./pikachu.glb', (gltf) => {
+		var mesh = gltf.scene;
+		mesh.position.set(10, 0, 10);
+		mesh.traverse((child) => {
+			if (child.isMesh) {
+				// Aktifkan penempatan dan penerimaan bayangan
+				child.castShadow = true;
+				child.receiveShadow = true;
+			}
+		});
+		scene.add(mesh);
+	});
+
+	loader.load('./cube.glb', (gltf) => {
+		var mesh = gltf.scene;
+		mesh.position.set(30, 0, 5);
+		mesh.traverse((child) => {
+			if (child.isMesh) {
+				// Aktifkan penempatan dan penerimaan bayangan
+				child.castShadow = true;
+				child.receiveShadow = true;
+			}
+		});
+		scene.add(mesh);
+	});
+
+    var moveForward = false;
+    var moveBackward = false;
+    var moveLeft = false;
+    var moveRight = false;
+
+    var prevX = 0;
+    var prevY = 0;
+
+    function onMouseDown(event) {
+        myCanvas.requestPointerLock();
+    }
+
+    function onMouseMove(event) {
+        var movementX = event.movementX || event.mozMovementX || 0;
+        var movementY = event.movementY || event.mozMovementY || 0;
+
+        prevX = movementX;
+        prevY = movementY;
+
+        var sensitivity = 0.002;
+        camera.rotation.y -= movementX * sensitivity;
+        camera.rotation.x -= movementY * sensitivity;
+
+        camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+    }
+
+    function onPointerLockChange() {
+        if (document.pointerLockElement === myCanvas) {
+            document.addEventListener('mousemove', onMouseMove, false);
+        } else {
+            document.removeEventListener('mousemove', onMouseMove, false);
+        }
+    }
+
+    function onKeyUp(event) {
+        switch (event.code) {
+            case 'KeyW':
+                moveForward = false;
+                break;
+            case 'KeyA':
+                moveLeft = false;
+                break;
+            case 'KeyS':
+                moveBackward = false;
+                break;
+            case 'KeyD':
+                moveRight = false;
+                break;
+        }
+    }
+
+    function onKeyDown(event) {
+        switch (event.code) {
+            case 'KeyW':
+                moveForward = true;
+                break;
+            case 'KeyA':
+                moveLeft = true;
+                break;
+            case 'KeyS':
+                moveBackward = true;
+                break;
+            case 'KeyD':
+                moveRight = true;
+                break;
+        }
+    }
+
+    function updateCameraPosition() {
+        var moveSpeed = 0.5;
+
+        var direction = new THREE.Vector3();
+        camera.getWorldDirection(direction);
+
+        var moveDirection = new THREE.Vector3();
+
+        if (moveForward) {
+            moveDirection.add(direction);
+        }
+        if (moveBackward) {
+            moveDirection.sub(direction);
+        }
+        if (moveLeft) {
+            moveDirection.sub(direction.clone().cross(camera.up));
+        }
+        if (moveRight) {
+            moveDirection.add(direction.clone().cross(camera.up));
+        }
+
+        moveDirection.normalize();
+
+        // Menerapkan matriks transformasi pada posisi kamera
+        var translationMatrix = new THREE.Matrix4().makeTranslation(
+            moveDirection.x * moveSpeed,
+            moveDirection.y * moveSpeed,
+            moveDirection.z * moveSpeed
+        );
+        camera.position.applyMatrix4(translationMatrix);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        updateCameraPosition();
+        renderer.render(scene, camera);
+    }
+
+    document.addEventListener('mousedown', onMouseDown, false);
+    document.addEventListener('pointerlockchange', onPointerLockChange, false);
+    document.addEventListener('keydown', onKeyDown, false);
+    document.addEventListener('keyup', onKeyUp, false);
+
+    animate();
+  </script>
+</body>
+</html>
