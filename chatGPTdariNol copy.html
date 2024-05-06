@@ -25,10 +25,6 @@
         var scene, camera, renderer, controls;
         var prevMouseX = 0;
         var prevMouseY = 0;
-        var moveForward = false;
-        var moveBackward = false;
-        var moveLeft = false;
-        var moveRight = false;
 
         init();
         animate();
@@ -47,9 +43,6 @@
                 scene.add(gltf.scene);
             });
             loader.load('./church_floor.glb', function(gltf) {
-                scene.add(gltf.scene);
-            });
-            loader.load('./cube.glb', function(gltf) {
                 scene.add(gltf.scene);
             });
 
@@ -79,33 +72,16 @@
             var onKeyDown = function(event) {
                 switch (event.keyCode) {
                     case 87: // W
-                        moveForward = true;
+                        camera.position.z -= 0.1;
                         break;
                     case 65: // A
-                        moveLeft = true;
+                        camera.position.x -= 0.1;
                         break;
                     case 83: // S
-                        moveBackward = true;
+                        camera.position.z += 0.1;
                         break;
                     case 68: // D
-                        moveRight = true;
-                        break;
-                }
-            };
-
-            var onKeyUp = function(event) {
-                switch (event.keyCode) {
-                    case 87: // W
-                        moveForward = false;
-                        break;
-                    case 65: // A
-                        moveLeft = false;
-                        break;
-                    case 83: // S
-                        moveBackward = false;
-                        break;
-                    case 68: // D
-                        moveRight = false;
+                        camera.position.x += 0.1;
                         break;
                 }
             };
@@ -113,26 +89,10 @@
             window.addEventListener('mousedown', onMouseDown, false);
             document.addEventListener('pointerlockchange', onPointerLockChange, false);
             window.addEventListener('keydown', onKeyDown, false);
-            window.addEventListener('keyup', onKeyUp, false);
         }
 
         function animate() {
             requestAnimationFrame(animate);
-
-            var moveSpeed = 0.1;
-            // Dapatkan vektor gerakan kamera berdasarkan rotasi kamera
-            var moveVector = new THREE.Vector3();
-            controls.getObject().getWorldDirection(moveVector);
-
-            // Hapus komponen vertikal dari vektor gerakan
-            moveVector.y = 0;
-            moveVector.normalize();
-
-            // Gerakkan kamera berdasarkan input dan kecepatan
-            if (moveForward) controls.getObject().position.add(moveVector.clone().multiplyScalar(moveSpeed));
-            if (moveBackward) controls.getObject().position.sub(moveVector.clone().multiplyScalar(moveSpeed));
-            if (moveLeft) controls.getObject().position.add(moveVector.clone().cross(controls.getObject().up).negate().multiplyScalar(moveSpeed));
-            if (moveRight) controls.getObject().position.add(moveVector.clone().cross(controls.getObject().up).multiplyScalar(moveSpeed));
 
             renderer.render(scene, camera);
         }
