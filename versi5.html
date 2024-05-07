@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Render .glb with Three.js</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+        .hide-cursor {
+            cursor: none;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
+    <script>
+        var scene, camera, renderer, controls;
+        var moveForward = false;
+        var moveBackward = false;
+        var moveLeft = false;
+        var moveRight = false;
+        var raycaster = new THREE.Raycaster();
+        var downRay = new THREE.Vector3(0, -0.1, 0);
+        var wallObjects = [];
+        var previousPosition = new THREE.Vector3();
+        var clouds = [];
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(
+                50,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            camera.position.y = 20;
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            var hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x080820, 1);
+            scene.add(hemisphereLight);
+
+            // Menambahkan lantai dengan warna hijau rumput
+            var floorGeometry = new THREE.PlaneGeometry(200, 200);
+            var floorMaterial = new THREE.MeshStandardMaterial({ color: 0x00FF00 });
+            var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2; // Rotasi agar floor sejajar dengan sumbu x
+            scene.add(floor);
+
+            // Menambahkan langit dengan warna biru
+            scene.background = new THREE.Color(0x87CEEB); // Warna biru langit
+          
+            var cloudFiles = ["./textures/cloud_1.glb", "./textures/cloud_2.glb", "./textures/cloud_3.glb", "./textures/cloud_4.glb"];
+            function loadCloud(cloudFile, x, y, z) {
+                var loader = new THREE.GLTFLoader();
+                loader.load(cloudFile, function (gltf) {
+                    var cloud = gltf.scene;
+                    cloud.position.set(x, y, z);
+                    cloud.scale.set(5, 5, 5);
+                    scene.add(cloud);
+                    clouds.push(cloud);
+                });
+            }
+            var cloudGroup = new THREE.Group();
+            for (var i = 0; i < 20; i++) {
+                for (var j = 0; j < cloudFiles.length; j++) {
+                    var x = Math.random() * 400 - 200;
+                    var y = Math.random() * 20 + 30;
+                    var z = Math.random() * 400 - 200;
+                    loadCloud(cloudFiles[j], x, y, z);
+                }
+            }
+            scene.add(cloudGroup);
+
+            var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            cloudGroup.add(ambientLight);
+
+            // Efek fog untuk menyembunyikan objek yang jauh
+            scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+
+            controls = new THREE.PointerLockControls(camera, document.body);
+            scene.add(controls.getObject());
+
+            var onMouseDown = function (event) {
+                controls.lock();
+            };
+
+            var onPointerLockChange = function () {
+                controls.enabled = document.pointerLockElement === document.body;
+            };
+
+            var onKeyDown = function (event) {
+                switch (event.keyCode) {
+                    case 87: // W
+                        moveForward = true;
+                        break;
+                    case 65: // A
+                        moveLeft = true;
+                        break;
+                    case 83: // S
+                        moveBackward = true;
+                        break;
+                    case 68: // D
+                        moveRight = true;
+                        break;
+                }
+            };
+
+            var onKeyUp = function (event) {
+                switch (event.keyCode) {
+                    case 87: // W
+                        moveForward = false;
+                        break;
+                    case 65: // A
+                        moveLeft = false;
+                        break;
+                    case 83: // S
+                        moveBackward = false;
+                        break;
+                    case 68: // D
+                        moveRight = false;
+                        break;
+                }
+            };
+
+            window.addEventListener("mousedown", onMouseDown, false);
+            document.addEventListener(
+                "pointerlockchange",
+                onPointerLockChange,
+                false
+            );
+            window.addEventListener("keydown", onKeyDown, false);
+            window.addEventListener("keyup", onKeyUp, false);
+        }
+        
+        // Penambahan pada bagian animate()
+        function animate() {
+            requestAnimationFrame(animate);
+
+            var moveSpeed = 0.1;
+            var moveVector = new THREE.Vector3();
+            controls.getObject().getWorldDirection(moveVector);
+            moveVector.y = 0;
+            moveVector.normalize();
+
+            raycaster.set(controls.getObject().position, downRay);
+            var intersects = raycaster.intersectObjects(scene.children, true);
+
+            // Penambahan pengecekan kollision dengan objek-objek tembok
+            var wallIntersects = raycaster.intersectObjects(wallObjects, true);
+
+            if (intersects.length > 0) {
+                if (intersects[0].distance - 1 > 0) {
+                    controls.getObject().position.y -= 0.6;
+                }
+            }
+
+            // Menggerakkan awan
+            for (var i = 0; i < clouds.length; i++) {
+                clouds[i].position.x += 0.1; // Arah gerakan awan ke kanan
+                // Jika awan berada di luar layar, reset posisi awan ke posisi awal
+                if (clouds[i].position.x > 200) {
+                    clouds[i].position.x = -200;
+                }
+            }
+
+            // if (wallIntersects.length > 0) {
+            //     // Jika bertabrakan dengan tembok, kembalikan karakter ke posisi sebelumnya
+            //     controls.getObject().position.copy(previousPosition);
+            // } else {
+            //     // Simpan posisi sebelumnya jika tidak bertabrakan dengan tembok
+            //     previousPosition.copy(controls.getObject().position);
+            // }
+
+            if (moveForward)
+                controls
+                    .getObject()
+                    .position.add(moveVector.clone().multiplyScalar(moveSpeed));
+            if (moveBackward)
+                controls
+                    .getObject()
+                    .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
+            if (moveLeft)
+                controls
+                    .getObject()
+                    .position.add(
+                        moveVector
+                            .clone()
+                            .cross(controls.getObject().up)
+                            .negate()
+                            .multiplyScalar(moveSpeed)
+                    );
+            if (moveRight)
+                controls
+                    .getObject()
+                    .position.add(
+                        moveVector
+                            .clone()
+                            .cross(controls.getObject().up)
+                            .multiplyScalar(moveSpeed)
+                    );
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+</html>
