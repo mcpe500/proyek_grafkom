@@ -22,105 +22,126 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
     <script>
-        var scene, camera, renderer, controls;
-        var moveForward = false;
-        var moveBackward = false;
-        var moveLeft = false;
-        var moveRight = false;
-        var jumping = false; 
-        var raycaster = new THREE.Raycaster();
-        var downRay = new THREE.Vector3(0, -0.1, 0);
-        var jumpingInProgress = false;
-        var wallObjects = [];
-        var previousPosition = new THREE.Vector3();
+      var scene, camera, renderer, controls;
+      var moveForward = false;
+      var moveBackward = false;
+      var moveLeft = false;
+      var moveRight = false;
+      var jumping = false;
+      var raycaster = new THREE.Raycaster();
+      var downRay = new THREE.Vector3(0, -0.1, 0);
+      var jumpingInProgress = false;
+      var wallObjects = [];
+      var previousPosition = new THREE.Vector3();
 
+      function jump() {
+        if (jumpingInProgress) return;
+        var jumpHeight = 2;
+        var jumpDuration = 150;
+        var startPositionY = controls.getObject().position.y;
+        var targetPositionY = startPositionY + jumpHeight;
+        var startTimestamp = null;
+        jumpingInProgress = true;
+        requestAnimationFrame(animateJump);
 
-        
-        function jump() {
-            if (jumpingInProgress) return;
-            var jumpHeight = 2;
-            var jumpDuration = 150;
-            var startPositionY = controls.getObject().position.y;
-            var targetPositionY = startPositionY + jumpHeight;
-            var startTimestamp = null;
-            jumpingInProgress = true;
+        function animateJump(timestamp) {
+          if (!startTimestamp) startTimestamp = timestamp;
+          var progress = timestamp - startTimestamp;
+          var deltaY = (progress / jumpDuration) * jumpHeight;
+          controls.getObject().position.y = startPositionY + deltaY;
+          if (progress < jumpDuration) {
             requestAnimationFrame(animateJump);
-            
-            function animateJump(timestamp) {
-                if (!startTimestamp) startTimestamp = timestamp;
-                var progress = timestamp - startTimestamp;
-                var deltaY = (progress / jumpDuration) * jumpHeight;
-                controls.getObject().position.y = startPositionY + deltaY;
-                if (progress < jumpDuration) {
-                    requestAnimationFrame(animateJump);
-                } else {
-                    startTimestamp = null;
-                    jumpingInProgress = false;
-                }
-            }
+          } else {
+            startTimestamp = null;
+            jumpingInProgress = false;
+          }
         }
+      }
 
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.y = 10;
-            renderer = new THREE.WebGLRenderer();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
+      function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(
+          50,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.y = 10;
+        renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-            var loader = new THREE.GLTFLoader();
-            loader.load('./low_poly_castle_in_ruins.glb', function(gltf) {
-                gltf.scene.traverse(function(child) {
-                    if (child.isMesh && child.material.isMeshStandardMaterial) {
-                        var envMap = new THREE.CubeTextureLoader().setPath('path/to/environment_map/') 
-                        // .load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg']);
-                        child.material.envMap = envMap;
-                        child.material.envMapIntensity = 1; 
-                        child.castShadow = true; 
+        var loader = new THREE.GLTFLoader();
+        loader.load("./low_poly_castle_in_ruins.glb", function (gltf) {
+          gltf.scene.traverse(function (child) {
+            if (child.isMesh && child.material.isMeshStandardMaterial) {
+              var envMap = new THREE.CubeTextureLoader().setPath(
+                "path/to/environment_map/"
+              );
+              // .load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg']);
+              child.material.envMap = envMap;
+              child.material.envMapIntensity = 1;
+              child.castShadow = true;
 
-                        // Tambahkan objek tembok ke dalam wallObjects
-                        // wallObjects.push(child);
-                    }
-                });
-                scene.add(gltf.scene);
-            });
+              // Tambahkan objek tembok ke dalam wallObjects
+              // wallObjects.push(child);
+            }
+          });
+          scene.add(gltf.scene);
+        });
 
+        var hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x080820, 1);
+        scene.add(hemisphereLight);
 
-            var hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x080820, 1);
-            scene.add(hemisphereLight);
+        controls = new THREE.PointerLockControls(camera, document.body);
+        scene.add(controls.getObject());
 
-            controls = new THREE.PointerLockControls(camera, document.body);
-            scene.add(controls.getObject());
+        var onMouseDown = function (event) {
+          controls.lock();
+        };
 
-            var onMouseDown = function(event) {
-                controls.lock();
-            };
+        var onPointerLockChange = function () {
+          controls.enabled = document.pointerLockElement === document.body;
+        };
 
-            var onPointerLockChange = function() {
-                controls.enabled = document.pointerLockElement === document.body;
-            };
+        var onKeyDown = function (event) {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = true;
+              break;
+            case 65: // A
+              moveLeft = true;
+              break;
+            case 83: // S
+              moveBackward = true;
+              break;
+            case 68: // D
+              moveRight = true;
+              break;
+            case 32: // Space
+              if (!jumping) {
+                jump();
+              }
+              break;
+          }
+        };
 
-            var onKeyDown = function(event) {
-                switch (event.keyCode) {
-                    case 87: // W
-                        moveForward = true;
-                        break;
-                    case 65: // A
-                        moveLeft = true;
-                        break;
-                    case 83: // S
-                        moveBackward = true;
-                        break;
-                    case 68: // D
-                        moveRight = true;
-                        break;
-                    case 32: // Space
-                        if (!jumping) {
-                            jump();
-                        }
-                        break;
-                }
-            };
+        var onKeyUp = function (event) {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = false;
+              break;
+            case 65: // A
+              moveLeft = false;
+              break;
+            case 83: // S
+              moveBackward = false;
+              break;
+            case 68: // D
+              moveRight = false;
+              break;
+          }
+        };
 
         window.addEventListener("mousedown", onMouseDown, false);
         document.addEventListener(
@@ -132,22 +153,8 @@
         window.addEventListener("keyup", onKeyUp, false);
       }
 
-      var jumpingInProgress = false; // Tambahkan variabel baru
-      function jump() {
-        if (jumpingInProgress) return; // Jika sedang dalam proses loncat, keluar dari fungsi
-        var jumpHeight = 2; // Tinggi loncatan
-        var jumpDuration = 150; // Durasi loncatan (ms)
-        var startPositionY = controls.getObject().position.y;
-        var targetPositionY = startPositionY + jumpHeight;
-        var startTimestamp = null;
-        jumpingInProgress = true; // Atur menjadi true saat meloncat
-        requestAnimationFrame(animateJump);
-        function animateJump(timestamp) {
-          if (!startTimestamp) startTimestamp = timestamp;
-          var progress = timestamp - startTimestamp;
-
-        // Penambahan pada bagian animate()
-        function animate() {
+      // Penambahan pada bagian animate()
+      function animate() {
         requestAnimationFrame(animate);
 
         var moveSpeed = 0.2;
@@ -163,9 +170,9 @@
         var wallIntersects = raycaster.intersectObjects(wallObjects, true);
 
         if (intersects.length > 0) {
-            if (intersects[0].distance - 1 > 0){
-                controls.getObject().position.y -= 0.6;
-            }
+          if (intersects[0].distance - 1 > 0) {
+            controls.getObject().position.y -= 0.6;
+          }
         }
 
         // if (wallIntersects.length > 0) {
@@ -175,19 +182,42 @@
         //     // Simpan posisi sebelumnya jika tidak bertabrakan dengan tembok
         //     previousPosition.copy(controls.getObject().position);
         // }
-        
+
         jumping = false;
-        
-        if (moveForward) controls.getObject().position.add(moveVector.clone().multiplyScalar(moveSpeed));
-        if (moveBackward) controls.getObject().position.sub(moveVector.clone().multiplyScalar(moveSpeed));
-        if (moveLeft) controls.getObject().position.add(moveVector.clone().cross(controls.getObject().up).negate().multiplyScalar(moveSpeed));
-        if (moveRight) controls.getObject().position.add(moveVector.clone().cross(controls.getObject().up).multiplyScalar(moveSpeed));
+
+        if (moveForward)
+          controls
+            .getObject()
+            .position.add(moveVector.clone().multiplyScalar(moveSpeed));
+        if (moveBackward)
+          controls
+            .getObject()
+            .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
+        if (moveLeft)
+          controls
+            .getObject()
+            .position.add(
+              moveVector
+                .clone()
+                .cross(controls.getObject().up)
+                .negate()
+                .multiplyScalar(moveSpeed)
+            );
+        if (moveRight)
+          controls
+            .getObject()
+            .position.add(
+              moveVector
+                .clone()
+                .cross(controls.getObject().up)
+                .multiplyScalar(moveSpeed)
+            );
 
         renderer.render(scene, camera);
-    }
+      }
 
-        init();
-        animate();
+      init();
+      animate();
     </script>
   </body>
 </html>
