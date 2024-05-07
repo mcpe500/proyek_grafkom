@@ -1,192 +1,237 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Render .glb with Three.js</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-        }
-        canvas {
-            display: block;
-        }
-        .hide-cursor {
-            cursor: none;
-        }
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+      .hide-cursor {
+        cursor: none;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
     <script>
-        var scene, camera, renderer, controls;
-        var prevMouseX = 0;
-        var prevMouseY = 0;
-        var moveForward = false;
-        var moveBackward = false;
-        var moveLeft = false;
-        var moveRight = false;
-        var jumping = false; 
-        var raycaster = new THREE.Raycaster();
-        var downRay = new THREE.Vector3(0, -1, 0);
+      var scene, camera, renderer, controls;
+      var prevMouseX = 0;
+      var prevMouseY = 0;
+      var moveForward = false;
+      var moveBackward = false;
+      var moveLeft = false;
+      var moveRight = false;
+      var jumping = false;
+      var raycaster = new THREE.Raycaster();
+      var downRay = new THREE.Vector3(0, -1, 0);
 
-        init();
-        animate();
+      init();
+      animate();
 
-        function init() {
-            // Inisialisasi scene, kamera, dan renderer
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.y = 10
-            renderer = new THREE.WebGLRenderer();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
+      function init() {
+        var relevantObjects = [];
+        // Inisialisasi scene, kamera, dan renderer
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(
+          50,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.y = 10;
+        renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-            // Load model
-            var loader = new THREE.GLTFLoader();
-            loader.load('./pikachu.glb', function(gltf) {
-                scene.add(gltf.scene);
-            });
-            loader.load('./church_floor.glb', function(gltf) {
-                var floor = gltf.scene;
-                floor.position.y = -1; // Menggeser posisi tanah ke bawah sejauh 10 unit
-                floor.scale.set(3, 3, 3); // Mengatur faktor skala menjadi 2x pada setiap sumbu
-                scene.add(floor);
-            });
+        // Load model
+        var loader = new THREE.GLTFLoader();
+        var pikachu;
+        loader.load("./pikachu.glb", function (gltf) {
+          pikachu = gltf.scene;
+          scene.add(gltf.scene);
+          relevantObjects.push(pikachu);
+        });
+        var floor;
+        loader.load("./church_floor.glb", function (gltf) {
+          floor = gltf.scene;
+          floor.position.y = -1; // Menggeser posisi tanah ke bawah sejauh 10 unit
+          floor.scale.set(3, 3, 3); // Mengatur faktor skala menjadi 2x pada setiap sumbu
+          scene.add(floor);
+          relevantObjects.push(floor);
+        });
 
-            loader.load('./cube.glb', function(gltf) {
-                scene.add(gltf.scene);
-            });
-            loader.load('./player.glb', function(gltf) {
-                scene.add(gltf.scene);
-            });
+        var cube;
+        loader.load("./cube.glb", function (gltf) {
+          scene.add(gltf.scene);
+          cube = gltf.scene;
+          relevantObjects.push(cube);
+        });
 
-            // Pencahayaan
-            var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-            scene.add(ambientLight);
+        var player;
+        loader.load("./player.glb", function (gltf) {
+          scene.add(gltf.scene);
+          player = gltf.scene;
+          relevantObjects.push(player);
+          console.log(relevantObjects);
+        });
+        // Pencahayaan
+        var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
 
-            // PointerLockControls
-            controls = new THREE.PointerLockControls(camera, document.body);
-            scene.add(controls.getObject());
+        // PointerLockControls
+        controls = new THREE.PointerLockControls(camera, document.body);
+        scene.add(controls.getObject());
+        // Event listener untuk mengaktifkan Pointer Lock
+        var onMouseDown = function (event) {
+          controls.lock();
+        };
 
-            // Event listener untuk mengaktifkan Pointer Lock
-            var onMouseDown = function(event) {
-                controls.lock();
-            };
+        // Event listener ketika Pointer Lock diubah
+        var onPointerLockChange = function () {
+          if (document.pointerLockElement === document.body) {
+            controls.enabled = true;
+          } else {
+            controls.enabled = false;
+          }
+        };
 
-            // Event listener ketika Pointer Lock diubah
-            var onPointerLockChange = function() {
-                if (document.pointerLockElement === document.body) {
-                    controls.enabled = true;
-                } else {
-                    controls.enabled = false;
-                }
-            };
+        // Event listener untuk menggerakkan kamera dengan tombol keyboard
+        var onKeyDown = function (event) {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = true;
+              break;
+            case 65: // A
+              moveLeft = true;
+              break;
+            case 83: // S
+              moveBackward = true;
+              break;
+            case 68: // D
+              moveRight = true;
+              break;
+            case 32: // Spasi
+              if (!jumping) {
+                jump();
+              }
+              break;
+          }
+        };
 
-            // Event listener untuk menggerakkan kamera dengan tombol keyboard
-            var onKeyDown = function(event) {
-                switch (event.keyCode) {
-                    case 87: // W
-                        moveForward = true;
-                        break;
-                    case 65: // A
-                        moveLeft = true;
-                        break;
-                    case 83: // S
-                        moveBackward = true;
-                        break;
-                    case 68: // D
-                        moveRight = true;
-                        break;
-                    case 32: // Spasi
-                        if (!jumping) {
-                            jump();
-                        }
-                        break;
-                }
-            };
+        var onKeyUp = function (event) {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = false;
+              break;
+            case 65: // A
+              moveLeft = false;
+              break;
+            case 83: // S
+              moveBackward = false;
+              break;
+            case 68: // D
+              moveRight = false;
+              break;
+          }
+        };
 
-            var onKeyUp = function(event) {
-                switch (event.keyCode) {
-                    case 87: // W
-                        moveForward = false;
-                        break;
-                    case 65: // A
-                        moveLeft = false;
-                        break;
-                    case 83: // S
-                        moveBackward = false;
-                        break;
-                    case 68: // D
-                        moveRight = false;
-                        break;
-                }
-            };
+        window.addEventListener("mousedown", onMouseDown, false);
+        document.addEventListener(
+          "pointerlockchange",
+          onPointerLockChange,
+          false
+        );
+        window.addEventListener("keydown", onKeyDown, false);
+        window.addEventListener("keyup", onKeyUp, false);
+      }
 
-            window.addEventListener('mousedown', onMouseDown, false);
-            document.addEventListener('pointerlockchange', onPointerLockChange, false);
-            window.addEventListener('keydown', onKeyDown, false);
-            window.addEventListener('keyup', onKeyUp, false);
-        }
+      var jumpingInProgress = false; // Tambahkan variabel baru
+      function jump() {
+        if (jumpingInProgress) return; // Jika sedang dalam proses loncat, keluar dari fungsi
+        var jumpHeight = 2; // Tinggi loncatan
+        var jumpDuration = 150; // Durasi loncatan (ms)
+        var startPositionY = controls.getObject().position.y;
+        var targetPositionY = startPositionY + jumpHeight;
+        var startTimestamp = null;
+        jumpingInProgress = true; // Atur menjadi true saat meloncat
+        requestAnimationFrame(animateJump);
+        function animateJump(timestamp) {
+          if (!startTimestamp) startTimestamp = timestamp;
+          var progress = timestamp - startTimestamp;
 
-        var jumpingInProgress = false; // Tambahkan variabel baru
-        function jump() {
-            if (jumpingInProgress) return; // Jika sedang dalam proses loncat, keluar dari fungsi
-            var jumpHeight = 2; // Tinggi loncatan
-            var jumpDuration = 150; // Durasi loncatan (ms)
-            var startPositionY = controls.getObject().position.y;
-            var targetPositionY = startPositionY + jumpHeight;
-            var startTimestamp = null;
-            jumpingInProgress = true; // Atur menjadi true saat meloncat
+          var deltaY = (progress / jumpDuration) * jumpHeight;
+          controls.getObject().position.y = startPositionY + deltaY;
+          if (progress < jumpDuration) {
             requestAnimationFrame(animateJump);
-            function animateJump(timestamp) {
-                if (!startTimestamp) startTimestamp = timestamp;
-                var progress = timestamp - startTimestamp;
-
-                var deltaY = (progress / jumpDuration) * jumpHeight;
-                controls.getObject().position.y = startPositionY + deltaY;
-                if (progress < jumpDuration) {
-                    requestAnimationFrame(animateJump);
-                } else {
-                    startTimestamp = null;
-                    jumpingInProgress = false; // Setelah loncatan selesai, atur kembali ke false
-                }
-            }
+          } else {
+            startTimestamp = null;
+            jumpingInProgress = false; // Setelah loncatan selesai, atur kembali ke false
+          }
         }
-        function animate() {
-            requestAnimationFrame(animate);
+      }
+      // Daftar objek yang relevan untuk deteksi tabrakan
+      function animate() {
+        requestAnimationFrame(animate);
 
-            var moveSpeed = 0.2;
-            // Dapatkan vektor gerakan kamera berdasarkan rotasi kamera
-            var moveVector = new THREE.Vector3();
-            controls.getObject().getWorldDirection(moveVector);
+        var moveSpeed = 0.2;
+        // Dapatkan vektor gerakan kamera berdasarkan rotasi kamera
+        var moveVector = new THREE.Vector3();
+        controls.getObject().getWorldDirection(moveVector);
 
-            // Hapus komponen vertikal dari vektor gerakan
-            moveVector.y = 0;
-            moveVector.normalize();
+        // Hapus komponen vertikal dari vektor gerakan
+        moveVector.y = 0;
+        moveVector.normalize();
 
-            // Cek tabrakan dengan objek di bawah
-            raycaster.set(controls.getObject().position, downRay);
-            var intersects = raycaster.intersectObjects(scene.children, true);
+        // Cek tabrakan dengan objek di bawah
+        raycaster.set(controls.getObject().position, downRay);
+        var intersects = raycaster.intersectObjects(scene.children, true);
 
-            if (intersects.length > 0) {
-                if (intersects[0].distance - 2 > 0){
-                    controls.getObject().position.y -= 0.6;// Turunkan kamera dengan kecepatan tertentu
-                    jumping = false;
-                }
-            }
-
-            // Gerakkan kamera berdasarkan input dan kecepatan
-            if (moveForward) controls.getObject().position.add(moveVector.clone().multiplyScalar(moveSpeed));
-            if (moveBackward) controls.getObject().position.sub(moveVector.clone().multiplyScalar(moveSpeed));
-            if (moveLeft) controls.getObject().position.add(moveVector.clone().cross(controls.getObject().up).negate().multiplyScalar(moveSpeed));
-            if (moveRight) controls.getObject().position.add(moveVector.clone().cross(controls.getObject().up).multiplyScalar(moveSpeed));
-
-            renderer.render(scene, camera);
+        if (intersects.length > 0) {
+          if (intersects[0].distance - 2 > 0) {
+            controls.getObject().position.y -= 0.6; // Turunkan kamera dengan kecepatan tertentu
+            jumping = false;
+          }
         }
+
+        // Gerakkan kamera berdasarkan input dan kecepatan
+        if (moveForward)
+          controls
+            .getObject()
+            .position.add(moveVector.clone().multiplyScalar(moveSpeed));
+        if (moveBackward)
+          controls
+            .getObject()
+            .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
+        if (moveLeft)
+          controls
+            .getObject()
+            .position.add(
+              moveVector
+                .clone()
+                .cross(controls.getObject().up)
+                .negate()
+                .multiplyScalar(moveSpeed)
+            );
+        if (moveRight)
+          controls
+            .getObject()
+            .position.add(
+              moveVector
+                .clone()
+                .cross(controls.getObject().up)
+                .multiplyScalar(moveSpeed)
+            );
+
+        renderer.render(scene, camera);
+      }
     </script>
-</body>
+  </body>
 </html>

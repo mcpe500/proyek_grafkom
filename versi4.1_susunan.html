@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Render .glb with Three.js</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+      .hide-cursor {
+        cursor: none;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
+    <script>
+      // Variabel global
+      let scene, camera, renderer, controls, raycaster, downRay;
+      let moveForward = false;
+      let moveBackward = false;
+      let moveLeft = false;
+      let moveRight = false;
+      let jumping = false;
+      let playerHeight = 2; // Tinggi karakter pemain
+      let relevantObjects = [];
+
+      // Inisialisasi
+      init();
+
+
+      function init() {
+        // Inisialisasi scene, kamera, dan renderer
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(
+          50,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.y = 10;
+        renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Load model
+        loadModels();
+
+        // Pencahayaan
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // PointerLockControls
+        controls = new THREE.PointerLockControls(camera, document.body);
+        scene.add(controls.getObject());
+        setupControls();
+
+        // Inisialisasi raycaster
+        raycaster = new THREE.Raycaster();
+        downRay = new THREE.Vector3(0, -1, 0);
+      }
+
+      function loadModels() {
+        const loader = new THREE.GLTFLoader();
+
+        loader.load("./pikachu.glb", (gltf) => {
+          const pikachu = gltf.scene;
+          scene.add(pikachu);
+          relevantObjects.push({sName:"pikachu",...pikachu});
+        });
+
+        loader.load("./church_floor.glb", (gltf) => {
+          const floor = gltf.scene;
+          floor.position.y = -1;
+          floor.scale.set(3, 3, 3);
+          scene.add(floor);
+          relevantObjects.push({sName:"floor",...floor});
+        });
+
+        loader.load("./cube.glb", (gltf) => {
+          const cube = gltf.scene;
+          scene.add(cube);
+          relevantObjects.push({sName:"cube",...cube});
+        });
+
+        loader.load("./player.glb", (gltf) => {
+          const player = gltf.scene;
+          scene.add(player);
+          relevantObjects.push({sName:"player",...player});
+          animate();
+        });
+      }
+
+      function setupControls() {
+        // Event listener untuk mengaktifkan Pointer Lock
+        const onMouseDown = () => controls.lock();
+
+        // Event listener ketika Pointer Lock diubah
+        const onPointerLockChange = () => {
+          controls.enabled = document.pointerLockElement === document.body;
+        };
+
+        // Event listener untuk menggerakkan kamera dengan tombol keyboard
+        const onKeyDown = (event) => {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = true;
+              break;
+            case 65: // A
+              moveLeft = true;
+              break;
+            case 83: // S
+              moveBackward = true;
+              break;
+            case 68: // D
+              moveRight = true;
+              break;
+            case 32: // Spasi
+              if (!jumping) {
+                jump();
+              }
+              break;
+          }
+        };
+
+        const onKeyUp = (event) => {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = false;
+              break;
+            case 65: // A
+              moveLeft = false;
+              break;
+            case 83: // S
+              moveBackward = false;
+              break;
+            case 68: // D
+              moveRight = false;
+              break;
+          }
+        };
+
+        window.addEventListener("mousedown", onMouseDown, false);
+        document.addEventListener(
+          "pointerlockchange",
+          onPointerLockChange,
+          false
+        );
+        window.addEventListener("keydown", onKeyDown, false);
+        window.addEventListener("keyup", onKeyUp, false);
+      }
+
+      let jumpingInProgress = false;
+      function jump() {
+        if (jumpingInProgress) return;
+        const jumpHeight = 2;
+        const jumpDuration = 150;
+        const startPositionY = controls.getObject().position.y;
+        const targetPositionY = startPositionY + jumpHeight;
+        let startTimestamp = null;
+        jumpingInProgress = true;
+
+        function animateJump(timestamp) {
+          if (!startTimestamp) startTimestamp = timestamp;
+          const progress = timestamp - startTimestamp;
+
+          const deltaY = (progress / jumpDuration) * jumpHeight;
+          controls.getObject().position.y = startPositionY + deltaY;
+          if (progress < jumpDuration) {
+            requestAnimationFrame(animateJump);
+          } else {
+            startTimestamp = null;
+            jumpingInProgress = false;
+          }
+        }
+
+        requestAnimationFrame(animateJump);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        const moveSpeed = 0.2;
+        const moveVector = new THREE.Vector3();
+        controls.getObject().getWorldDirection(moveVector);
+
+        // Hapus komponen vertikal dari vektor gerakan
+        moveVector.y = 0;
+        moveVector.normalize();
+
+        // Cek tabrakan dengan objek di bawah (tanah)
+        const playerPosition = controls.getObject().position.clone();
+        playerPosition.y += playerHeight / 2; // Posisi tengah karakter
+        raycaster.set(playerPosition, downRay);
+
+        // Cek tabrakan dengan objek di bawah
+        raycaster.set(controls.getObject().position, downRay);
+
+        console.log(raycaster);
+        var intersects = raycaster.intersectObjects(relevantObjects.map(obj => obj.children[0]), true);
+
+        if (intersects.length > 0) {
+          const closestObject = intersects[0].object;
+          const distanceToGround = intersects[0].distance;
+          if (distanceToGround - 2 > 0) {
+            controls.getObject().position.y -= 0.6; // Turunkan kamera dengan kecepatan tertentu
+            jumping = false;
+          }
+        }
+
+        // Gerakkan kamera berdasarkan input dan kecepatan
+        if (moveForward)
+          controls
+            .getObject()
+            .position.add(moveVector.clone().multiplyScalar(moveSpeed));
+        if (moveBackward)
+          controls
+            .getObject()
+            .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
+        if (moveLeft)
+          controls
+            .getObject()
+            .position.add(
+              moveVector
+                .clone()
+                .cross(controls.getObject().up)
+                .negate()
+                .multiplyScalar(moveSpeed)
+            );
+        if (moveRight)
+          controls
+            .getObject()
+            .position.add(
+              moveVector
+                .clone()
+                .cross(controls.getObject().up)
+                .multiplyScalar(moveSpeed)
+            );
+
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
+</html
