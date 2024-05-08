@@ -1,324 +1,478 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Render .glb with Three.js</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-        }
-        canvas {
-            display: block;
-        }
-        .hide-cursor {
-            cursor: none;
-        }
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+      .hide-cursor {
+        cursor: none;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
     <script>
-        var scene, renderer, controls, camera;
-        var moveForward = false;
-        var moveBackward = false;
-        var moveLeft = false;
-        var moveRight = false;
+      var scene, renderer, controls, camera;
+      var moveForward = false;
+      var moveBackward = false;
+      var moveLeft = false;
+      var moveRight = false;
 
-        var raycaster = new THREE.Raycaster();
-        var downRay = new THREE.Vector3(0, -0.1, 0);
-        var previousPosition = new THREE.Vector3();
+      var raycaster = new THREE.Raycaster();
+      var downRay = new THREE.Vector3(0, -0.1, 0);
+      var previousPosition = new THREE.Vector3();
 
-        var clouds = [];
-        var objects = [];
-        var eagleEyeMode = false;
-        
-        var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-        directionalLight.position.set(0, 70, 0);
-        var hemisphereLight = new THREE.HemisphereLight(0xffffff, 1);
-        hemisphereLight.position.set(0, 70, 0);
-        var shadowSize = 150;
-        var orbitRadius = 100; // Radius orbit matahari
-        var sunAngle = 0;
+      var clouds = [];
+      var objects = [];
+      var eagleEyeMode = false;
 
-        var eagleEyeCameraPosition = new THREE.Vector3(30, 20, 30);
-        var eagleEyeCameraLookAt = new THREE.Vector3(0, 0, 0);
-        var firstPersonCameraPosition = new THREE.Vector3();
-        var firstPersonCameraRotation = new THREE.Euler();
+      var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      directionalLight.position.set(0, 0, 0);
+      var hemisphereLight = new THREE.HemisphereLight(0xffffff, 1);
+      hemisphereLight.position.set(0, 0, 0);
+      var shadowSize = 150;
+      var orbitRadius = 100;
+      var sunAngle = 0;
+      var maxSunAngle = Math.PI;
 
-        function switchToFirstPersonMode() {
-            camera.position.copy(firstPersonCameraPosition);
-            camera.rotation.copy(firstPersonCameraRotation);
+      var eagleEyeCameraPosition = new THREE.Vector3(30, 20, 30);
+      var eagleEyeCameraLookAt = new THREE.Vector3(0, 0, 0);
+      var firstPersonCameraPosition = new THREE.Vector3();
+      var firstPersonCameraRotation = new THREE.Euler();
+      var loader = new THREE.GLTFLoader();
+
+      function switchToFirstPersonMode() {
+        camera.position.copy(firstPersonCameraPosition);
+        camera.rotation.copy(firstPersonCameraRotation);
+      }
+
+      function switchToEagleEyeMode() {
+        firstPersonCameraPosition.copy(camera.position);
+        firstPersonCameraRotation.copy(camera.rotation);
+
+        camera.position.copy(eagleEyeCameraPosition);
+        camera.lookAt(eagleEyeCameraLookAt);
+      }
+
+      function addObjectToCheck(object, objectFile) {
+        objects.push(object);
+        objects[objects.length - 1].sName = objectFile;
+      }
+
+      function loadObject(objectFile, x, y, z, scale, options = {}) {
+        loader.load(objectFile, function (gltf) {
+          var object = gltf.scene;
+          object.position.set(x, y, z);
+          object.scale.set(scale, scale, scale);
+          object.traverse(function (node) {
+            if (node.isMesh) {
+              node.receiveShadow = true;
+              node.castShadow = true;
+            }
+          });
+          if (options) {
+            if (options.rotation) {
+              object.rotation.x = THREE.MathUtils.degToRad(options.rotation.x);
+              object.rotation.y = THREE.MathUtils.degToRad(options.rotation.y);
+              object.rotation.z = THREE.MathUtils.degToRad(options.rotation.z);
+            }
+            if (options.center) {
+              object.position.x += options.center.x;
+              object.position.y += options.center.y;
+              object.position.z += options.center.z;
+            }
+          }
+          scene.add(object);
+          addObjectToCheck(object, objectFile);
+        });
+      }
+
+      function rotate(object, { x = 0, y = 0, z = 0 } = {}) {
+        if (object === undefined) return;
+        const { degToRad } = THREE.MathUtils;
+        object.rotation.x += degToRad(x);
+        object.rotation.y += degToRad(y);
+        object.rotation.z += degToRad(z);
+      }
+
+      async function makeWalls(objectFile, startX, startY, width, height) {
+        const spacing = 5 * 0.975;
+        const positionsAndRotations = [
+          ...Array.from({ length: width - 2 }, (_, i) => ({
+            position: [startX + (i + 2) * spacing, 0.75, startY],
+            rotation: { x: 0, y: 90, z: 0 },
+          })),
+          ...Array.from({ length: width - 1 }, (_, i) => ({
+            position: [
+              startX + i * spacing,
+              0.75,
+              startY + (height - 1) * spacing,
+            ],
+            rotation: { x: 0, y: 270, z: 0 },
+          })),
+          ...Array.from({ length: height - 1 }, (_, i) => ({
+            position: [startX, 0.75, startY + (i + 1) * spacing],
+            rotation: { x: 0, y: 180, z: 0 },
+          })),
+          ...Array.from({ length: height }, (_, i) => ({
+            position: [
+              startX + (width - 1) * spacing,
+              0.75,
+              startY + (i + 1) * spacing,
+            ],
+          })),
+        ];
+
+        for (const { position, rotation } of positionsAndRotations) {
+          loader.load(
+            objectFile,
+            (gltf) => {
+              const object = gltf.scene;
+              object.position.set(...position);
+              object.scale.set(1, 1, 1);
+              object.castShadow = true;
+              object.receiveShadow = true;
+              if (rotation) {
+                object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
+                object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
+                object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+              }
+              scene.add(object);
+              addObjectToCheck(object, objectFile);
+            },
+            undefined,
+            (error) => console.error(`Failed to load object: ${error}`)
+          );
         }
+      }
 
-        function switchToEagleEyeMode() {
-            firstPersonCameraPosition.copy(camera.position);
-            firstPersonCameraRotation.copy(camera.rotation);
+      function init() {
+        scene = new THREE.Scene();
+        renderer = new THREE.WebGLRenderer();
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+        renderer.setSize(window.innerWidth, window.innerHeight);
 
-            camera.position.copy(eagleEyeCameraPosition);
-            camera.lookAt(eagleEyeCameraLookAt);
-        }
+        scene.add(hemisphereLight);
 
-        function addObjectToCheck(object) {
-            objects.push(object);
-        }
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.top += shadowSize;
+        directionalLight.shadow.camera.bottom -= shadowSize;
+        directionalLight.shadow.camera.left -= shadowSize;
+        directionalLight.shadow.camera.right += shadowSize;
+        scene.add(directionalLight);
+        scene.add(new THREE.CameraHelper(directionalLight.shadow.camera));
 
-        function loadObject(objectFile, x, y, z, scale) {
-            var loader = new THREE.GLTFLoader();
-            loader.load(objectFile, function (gltf) {
-                var object = gltf.scene;
-                object.position.set(x, y, z);
-                object.scale.set(scale, scale, scale);
-                object.traverse(function(node){
-                    if(node.isMesh){
-                        node.receiveShadow = true;
-                        node.castShadow = true
-                    }
-                })
-                object.receiveShadow = true;
-                scene.add(object);
-                addObjectToCheck(object);
+        const windmill_location = { x: 20, y: 0, z: 10 };
+        loadObject(
+          "./textures/result/kaki_windmill.glb",
+          windmill_location.x,
+          windmill_location.y,
+          windmill_location.z,
+          0.05,
+          {
+            rotation: { x: 90, y: 0, z: 0 },
+          }
+        );
+        loadObject(
+          "./textures/result/baling_baling_windmill.glb",
+          windmill_location.x + 1.2,
+          windmill_location.y + 28.5,
+          windmill_location.z * 1,
+          0.05,
+          {
+            center: {
+              x: 0,
+              y: 0,
+              z: 0,
+            },
+          }
+        );
+
+        makeWalls("./textures/wooden_fence.glb", 20, 20, 5, 10);
+        loadObject("./textures/barn.glb", -20, 2.8, 20, 1);
+        loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
+        loadObject("./textures/wooden_fence.glb", 10, 0, 10, 1);
+
+        var cloudFiles = [
+          "./textures/cloud_1.glb",
+          "./textures/cloud_2.glb",
+          "./textures/cloud_3.glb",
+          "./textures/cloud_4.glb",
+        ];
+        function loadCloud(cloudFile, x, y, z) {
+          loader.load(cloudFile, function (gltf) {
+            var cloud = gltf.scene;
+            cloud.receiveShadow = false;
+            cloud.position.set(x, y, z);
+            cloud.scale.set(5, 5, 5);
+            cloud.traverse(function (node) {
+              if (node.isMesh) {
+                node.castShadow = true;
+              }
             });
+            scene.add(cloud);
+            clouds.push(cloud);
+          });
+        }
+        var cloudGroup = new THREE.Group();
+        for (var i = 0; i < 30; i++) {
+          for (var j = 0; j < cloudFiles.length; j++) {
+            var x = Math.random() * 400 - 200;
+            var y = Math.random() * 20 + 30;
+            var z = Math.random() * 400 - 200;
+            loadCloud(cloudFiles[j], x, y, z);
+          }
+        }
+        scene.add(cloudGroup);
+        cloudGroup.add(ambientLight);
+
+        var grassGeometry = new THREE.PlaneGeometry(200, 200);
+        var grassMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
+        var grass = new THREE.Mesh(grassGeometry, grassMaterial);
+        grass.receiveShadow = true;
+        grass.rotation.x = -Math.PI / 2;
+        grass.position.set(0, 0, 0);
+        scene.add(grass);
+
+        // var fieldGeometry = new THREE.PlaneGeometry(50, 50);
+        // var fieldMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
+        // var field = new THREE.Mesh(fieldGeometry, fieldMaterial);
+        // field.rotation.x = -Math.PI / 2;
+        // field.receiveShadow = true;
+        // field.position.set(0, 0.005, 0);
+        // scene.add(field);
+
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.Fog(0x87ceeb, 50, 200);
+
+        camera = new THREE.PerspectiveCamera(
+          50,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.y = 20;
+
+        controls = new THREE.PointerLockControls(camera, document.body);
+        scene.add(controls.getObject());
+
+        var onMouseDown = function (event) {
+          controls.lock();
+        };
+
+        var onPointerLockChange = function () {
+          controls.enabled = document.pointerLockElement === document.body;
+        };
+
+        var onKeyDown = function (event) {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = true;
+              break;
+            case 65: // A
+              moveLeft = true;
+              break;
+            case 83: // S
+              moveBackward = true;
+              break;
+            case 68: // D
+              moveRight = true;
+              break;
+            case 49: // '1' untuk first person view
+              eagleEyeMode = false;
+              switchToFirstPersonMode();
+              break;
+            case 50: // '2' untuk eagle eye view
+              eagleEyeMode = true;
+              switchToEagleEyeMode();
+              break;
+          }
+        };
+
+        var onKeyUp = function (event) {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = false;
+              break;
+            case 65: // A
+              moveLeft = false;
+              break;
+            case 83: // S
+              moveBackward = false;
+              break;
+            case 68: // D
+              moveRight = false;
+              break;
+          }
+        };
+
+        window.addEventListener("mousedown", onMouseDown, false);
+        document.addEventListener(
+          "pointerlockchange",
+          onPointerLockChange,
+          false
+        );
+        window.addEventListener("keydown", onKeyDown, false);
+        window.addEventListener("keyup", onKeyUp, false);
+      }
+
+      function checkCollision() {
+        var raycasters = [];
+        raycasters.push(
+          new THREE.Raycaster(
+            controls.getObject().position,
+            new THREE.Vector3(0, 0, -1)
+          )
+        );
+        raycasters.push(
+          new THREE.Raycaster(
+            controls.getObject().position,
+            new THREE.Vector3(0, 0, 1)
+          )
+        );
+        raycasters.push(
+          new THREE.Raycaster(
+            controls.getObject().position,
+            new THREE.Vector3(-1, 0, 0)
+          )
+        );
+        raycasters.push(
+          new THREE.Raycaster(
+            controls.getObject().position,
+            new THREE.Vector3(1, 0, 0)
+          )
+        );
+        var intersected = false;
+        raycasters.forEach(function (raycaster) {
+          var intersects = raycaster.intersectObjects(objects, true);
+          if (intersects.length > 0 && intersects[0].distance < 1) {
+            intersected = true;
+          }
+        });
+        if (intersected) {
+          controls.getObject().position.copy(previousPosition);
+        } else {
+          previousPosition.copy(controls.getObject().position);
+        }
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        var baling_baling_windmill = objects.find((o) =>
+          o.sName.includes("baling_baling_windmill")
+        );
+        rotate(baling_baling_windmill, { x: 1, y: 0, z: 0 });
+
+        if (sunAngle < maxSunAngle) {
+          sunAngle += 0.001;
+        } else {
+          sunAngle = 0; // Kembali ke 0 derajat setelah mencapai 180 derajat
         }
 
+        directionalLight.position.x = Math.cos(sunAngle) * orbitRadius;
+        directionalLight.position.y = Math.sin(sunAngle) * orbitRadius;
+        directionalLight.position.z = 10;
+        hemisphereLight.position.x = Math.cos(sunAngle) * orbitRadius;
+        hemisphereLight.position.y = Math.sin(sunAngle) * orbitRadius;
+        hemisphereLight.position.z = 10;
 
-        function init() {
-            scene = new THREE.Scene();
-            renderer = new THREE.WebGLRenderer();
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            document.body.appendChild(renderer.domElement);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            
-            scene.add(hemisphereLight);
-
-            directionalLight.castShadow = true;
-            directionalLight.shadow.mapSize.width = 4096;
-            directionalLight.shadow.mapSize.height = 4096;
-            directionalLight.shadow.camera.top += shadowSize;
-            directionalLight.shadow.camera.bottom -= shadowSize;
-            directionalLight.shadow.camera.left -= shadowSize;
-            directionalLight.shadow.camera.right += shadowSize;
-            scene.add(directionalLight);
-            scene.add(new THREE.CameraHelper(directionalLight.shadow.camera));
-
-            loadObject("./textures/barn.glb", -20, 2.8, 20, 1);
-            loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
-            loadObject("./textures/wooden_fence.glb", 10, 0, 10, 1);
-
-            var cloudFiles = ["./textures/cloud_1.glb", "./textures/cloud_2.glb", "./textures/cloud_3.glb", "./textures/cloud_4.glb"];
-            function loadCloud(cloudFile, x, y, z) {
-                var loader = new THREE.GLTFLoader();
-                loader.load(cloudFile, function (gltf) {
-                    var cloud = gltf.scene;
-                    cloud.receiveShadow = false;
-                    cloud.position.set(x, y, z);
-                    cloud.scale.set(5, 5, 5);
-                    cloud.traverse(function(node){
-                        if(node.isMesh){
-                            node.castShadow = true
-                        }
-                    });
-                    scene.add(cloud);
-                    clouds.push(cloud);
-                });
-            }
-            var cloudGroup = new THREE.Group();
-            for (var i = 0; i < 30; i++) {
-                for (var j = 0; j < cloudFiles.length; j++) {
-                    var x = Math.random() * 400 - 200;
-                    var y = Math.random() * 20 + 30;
-                    var z = Math.random() * 400 - 200;
-                    loadCloud(cloudFiles[j], x, y, z);
-                }
-            }
-            scene.add(cloudGroup);
-            cloudGroup.add(ambientLight);
-
-            var grassGeometry = new THREE.PlaneGeometry(200, 200);
-            var grassMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
-            var grass = new THREE.Mesh(grassGeometry, grassMaterial);
-            grass.receiveShadow = true;
-            grass.rotation.x = -Math.PI / 2;
-            grass.position.set(0, 0, 0);
-            scene.add(grass);
-            
-            // var fieldGeometry = new THREE.PlaneGeometry(50, 50);
-            // var fieldMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
-            // var field = new THREE.Mesh(fieldGeometry, fieldMaterial);
-            // field.rotation.x = -Math.PI / 2;
-            // field.receiveShadow = true;
-            // field.position.set(0, 0.005, 0);
-            // scene.add(field);
-
-            scene.background = new THREE.Color(0x87CEEB);
-            scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
-
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.y = 20;
-
-            controls = new THREE.PointerLockControls(camera, document.body);
-            scene.add(controls.getObject());
-
-            var onMouseDown = function (event) {
-                controls.lock();
-            };
-
-            var onPointerLockChange = function () {
-                controls.enabled = document.pointerLockElement === document.body;
-            };
-
-            var onKeyDown = function (event) {
-                switch (event.keyCode) {
-                    case 87: // W
-                        moveForward = true;
-                        break;
-                    case 65: // A
-                        moveLeft = true;
-                        break;
-                    case 83: // S
-                        moveBackward = true;
-                        break;
-                    case 68: // D
-                        moveRight = true;
-                        break;
-                        case 49: // '1' untuk first person view
-                        eagleEyeMode = false;
-                        switchToFirstPersonMode();
-                        break;
-                    case 50: // '2' untuk eagle eye view
-                        eagleEyeMode = true;
-                        switchToEagleEyeMode();
-                        break;
-                }
-            };
-
-            var onKeyUp = function (event) {
-                switch (event.keyCode) {
-                    case 87: // W
-                        moveForward = false;
-                        break;
-                    case 65: // A
-                        moveLeft = false;
-                        break;
-                    case 83: // S
-                        moveBackward = false;
-                        break;
-                    case 68: // D
-                        moveRight = false;
-                        break;
-                }
-            };
-
-            window.addEventListener("mousedown", onMouseDown, false);
-            document.addEventListener(
-                "pointerlockchange",
-                onPointerLockChange,
-                false
-            );
-            window.addEventListener("keydown", onKeyDown, false);
-            window.addEventListener("keyup", onKeyUp, false);
+        // Mengatur warna langit berdasarkan posisi matahari
+        var skyColor;
+        if (sunAngle < Math.PI / 4) {
+          // Pagi (0 - 45 derajat)
+          skyColor = new THREE.Color(0.8, 0.6, 0.2); // Warna langit pagi
+        } else if (sunAngle < Math.PI / 2) {
+          // Siang (45 - 90 derajat)
+          skyColor = new THREE.Color(0.2, 0.6, 0.8); // Warna langit siang
+        } else if (sunAngle < (3 * Math.PI) / 4) {
+          // Sore (90 - 135 derajat)
+          skyColor = new THREE.Color(0.8, 0.4, 0.2); // Warna langit sore
+        } else {
+          // Malam (135 - 180 derajat)
+          skyColor = new THREE.Color(0.1, 0.1, 0.4); // Warna langit malam
         }
-        
-        function checkCollision() {
-            var raycasters = [];
-            raycasters.push(new THREE.Raycaster(controls.getObject().position, new THREE.Vector3(0, 0, -1)));
-            raycasters.push(new THREE.Raycaster(controls.getObject().position, new THREE.Vector3(0, 0, 1)));
-            raycasters.push(new THREE.Raycaster(controls.getObject().position, new THREE.Vector3(-1, 0, 0)));
-            raycasters.push(new THREE.Raycaster(controls.getObject().position, new THREE.Vector3(1, 0, 0)));
-            var intersected = false;
-            raycasters.forEach(function (raycaster) {
-                var intersects = raycaster.intersectObjects(objects, true);
-                if (intersects.length > 0 && intersects[0].distance < 1) {
-                    intersected = true;
-                }
-            });
-            if (intersected) {
-                controls.getObject().position.copy(previousPosition);
-            } else {
-                previousPosition.copy(controls.getObject().position);
+        scene.background = skyColor;
+
+        var moveSpeed = 0.2;
+        var moveVector = new THREE.Vector3();
+        controls.getObject().getWorldDirection(moveVector);
+        moveVector.y = 0;
+        moveVector.normalize();
+
+        if (!eagleEyeMode) {
+          raycaster.set(controls.getObject().position, downRay);
+          var intersects = raycaster.intersectObjects(scene.children, true);
+
+          if (intersects.length > 0) {
+            if (intersects[0].distance - 1 > 0) {
+              controls.getObject().position.y -= 0.6;
             }
+          }
+        }
+        checkCollision();
+        // Menggerakkan awan
+        for (var i = 0; i < clouds.length; i++) {
+          clouds[i].position.x += 0.1;
+
+          if (clouds[i].position.x > 250) {
+            clouds[i].position.x = -250;
+            clouds[i].position.y = Math.random() * 20 + 30;
+            clouds[i].position.z = Math.random() * 400 - 200;
+          }
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            sunAngle += 0.001;
-            directionalLight.position.x = Math.cos(sunAngle) * orbitRadius;
-            directionalLight.position.y = Math.sin(sunAngle) * orbitRadius;
-            directionalLight.position.z = 0;
-            // hemisphereLight.position.x = Math.sin(time) * 20;
-            // hemisphereLight.position.y = Math.sin(time) * 20;
-            // hemisphereLight.position.z = Math.sin(time) * 20;
-
-
-            var moveSpeed = 0.2;
-            var moveVector = new THREE.Vector3();
-            controls.getObject().getWorldDirection(moveVector);
-            moveVector.y = 0;
-            moveVector.normalize();
-
-            if (!eagleEyeMode) {
-                raycaster.set(controls.getObject().position, downRay);
-                var intersects = raycaster.intersectObjects(scene.children, true);
-    
-                if (intersects.length > 0) {
-                    if (intersects[0].distance - 1 > 0) {
-                        controls.getObject().position.y -= 0.6;
-                    }
-                }
-            }
-            checkCollision();
-            // Menggerakkan awan
-            for (var i = 0; i < clouds.length; i++) {
-                clouds[i].position.x += 0.1;
-                
-                if (clouds[i].position.x > 250) {
-                    clouds[i].position.x = -250;
-                    clouds[i].position.y = Math.random() * 20 + 30;
-                    clouds[i].position.z = Math.random() * 400 - 200;
-                }
-            }
-
-            if (true) {
-                // Kontrol untuk first person mode
-                if (moveForward)
-                    controls
-                        .getObject()
-                        .position.add(moveVector.clone().multiplyScalar(moveSpeed));
-                if (moveBackward)
-                    controls
-                        .getObject()
-                        .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
-                if (moveLeft)
-                    controls
-                        .getObject()
-                        .position.add(
-                            moveVector
-                                .clone()
-                                .cross(controls.getObject().up)
-                                .negate()
-                                .multiplyScalar(moveSpeed)
-                        );
-                if (moveRight)
-                    controls
-                        .getObject()
-                        .position.add(
-                            moveVector
-                                .clone()
-                                .cross(controls.getObject().up)
-                                .multiplyScalar(moveSpeed)
-                        );
-            }
-
-            renderer.render(scene, camera);
+        if (true) {
+          // Kontrol untuk first person mode
+          if (moveForward)
+            controls
+              .getObject()
+              .position.add(moveVector.clone().multiplyScalar(moveSpeed));
+          if (moveBackward)
+            controls
+              .getObject()
+              .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
+          if (moveLeft)
+            controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(controls.getObject().up)
+                  .negate()
+                  .multiplyScalar(moveSpeed)
+              );
+          if (moveRight)
+            controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(controls.getObject().up)
+                  .multiplyScalar(moveSpeed)
+              );
         }
 
-        init();
-        animate();
+        renderer.render(scene, camera);
+      }
+
+      init();
+      animate();
     </script>
-</body>
+  </body>
 </html>
