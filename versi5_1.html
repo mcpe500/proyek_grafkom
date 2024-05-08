@@ -56,6 +56,51 @@
         objects[objects.length - 1].sName = objectFile;
       }
 
+      function makeWalls(
+        object,
+        startX,
+        startY,
+        width,
+        height,
+        entryX,
+        entryY
+      ) {
+        let spacing = 5;
+        for (let i = 2; i < width; i++) {
+          loadObject(object, startX + i * spacing, 0.75, startY, 1, {
+            rotation: { x: 0, y: 90, z: 0 },
+          });
+        }
+        for (let i = 0; i < width - 1; i++) {
+          loadObject(
+            object,
+            startX + i * spacing,
+            0.75,
+            startY + (height - 1) * spacing,
+            1,
+            { rotation: { x: 0, y: 270, z: 0 } }
+          );
+        }
+        for (let i = 1; i < height - 1; i++) {
+          loadObject(object, startX, 0.75, startY + i * spacing, 1, {
+            rotation: { x: 0, y: 180, z: 0 },
+          });
+        }
+        for (let i = 1; i < height; i++) {
+          loadObject(
+            object,
+            startX + (width - 1) * spacing,
+            0.75,
+            startY + i * spacing,
+            1
+            // { rotation: { x: 0, y: 270, z: 50 } }
+          );
+        }
+      }
+      // loadObject("./textures/wooden_fence.glb", 10, 0.75, 15, 1);
+      // loadObject("./textures/wooden_fence.glb", startX + i * spacing, 0.75, 15, 1);
+      // loadObject("./textures/wooden_fence.glb", 10, 0.75, 15, 1);
+
       function loadObject(objectFile, x, y, z, scale, options = {}) {
         var loader = new THREE.GLTFLoader();
         loader.load(objectFile, function (gltf) {
@@ -70,18 +115,10 @@
               object.rotation.y = THREE.MathUtils.degToRad(options.rotation.y);
               object.rotation.z = THREE.MathUtils.degToRad(options.rotation.z);
             }
-            // i want to if i loaded an object that is not centered and i want to change the center point
             if (options.center) {
-              // this is currently not making the center position changing, but it only move the object, i want to change the center position, so when i rotate it will rotate based on that coords
-              // object.position.set(
-              //   x + options.center.x,
-              //   y + options.center.y,
-              //   z + options.center.z
-              // );
               object.position.x += options.center.x;
               object.position.y += options.center.y;
               object.position.z += options.center.z;
-
             }
           }
           scene.add(object);
@@ -111,7 +148,10 @@
 
         loadObject("./textures/barn.glb", -20, 2.5, 20, 1);
         loadObject("./textures/scarecrow.glb", 10, 10, 10, 1);
-        loadObject("./textures/wooden_fence.glb", 10, 0, 10, 1);
+
+        // loadObject("./textures/wooden_fence.glb", 10, 0.75, 10, 1);
+
+        makeWalls("./textures/wooden_fence.glb", 20, 20, 5, 5);
 
         const windmill_location = { x: 20, y: 0, z: 10 };
         loadObject(
@@ -138,7 +178,7 @@
             },
           }
         );
-        console.log(objects)
+        console.log(objects);
 
         var cloudFiles = [
           "./textures/cloud_1.glb",
