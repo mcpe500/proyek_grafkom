@@ -97,34 +97,44 @@
       //     );
       //   }
       // }
-      async function makeWalls(objectFile, startX, startY, width, height) {
+      async function makeWalls(objectFile, startX, startY, w, h) {
+        const width = w + 1;
+        const height = h + 1;
         const spacing = 5 * 0.975;
-        const positionsAndRotations = [
-          ...Array.from({ length: width - 2 }, (_, i) => ({
-            position: [startX + (i + 2) * spacing, 0.75, startY],
+        const positionsAndRotations = [];
+
+        for (let i = 2; i < width; i++) {
+          positionsAndRotations.push({
+            position: [startX + i * spacing, 0.75, startY],
             rotation: { x: 0, y: 90, z: 0 },
-          })),
-          ...Array.from({ length: width - 1 }, (_, i) => ({
+          });
+        }
+        for (let i = 0; i < width - 1; i++) {
+          positionsAndRotations.push({
             position: [
               startX + i * spacing,
               0.75,
               startY + (height - 1) * spacing,
             ],
             rotation: { x: 0, y: 270, z: 0 },
-          })),
-          ...Array.from({ length: height - 1 }, (_, i) => ({
-            position: [startX, 0.75, startY + (i + 1) * spacing],
+          });
+        }
+        for (let i = 1; i < height - 1; i++) {
+          positionsAndRotations.push({
+            position: [startX, 0.75, startY + i * spacing],
             rotation: { x: 0, y: 180, z: 0 },
-          })),
-          ...Array.from({ length: height }, (_, i) => ({
+          });
+        }
+        for (let i = 1; i < height; i++) {
+          positionsAndRotations.push({
             position: [
               startX + (width - 1) * spacing,
               0.75,
-              startY + (i + 1) * spacing,
+              startY + i * spacing,
             ],
-          })),
-        ];
-
+            rotation: { x: 0, y: 0, z: 0 },
+          });
+        }
         const loader = new THREE.GLTFLoader();
 
         for (const { position, rotation } of positionsAndRotations) {
