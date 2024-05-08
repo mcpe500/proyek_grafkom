@@ -212,7 +212,8 @@
         loadObject("./textures/barn.glb", -20, 2.5, 20, 1);
         loadObject("./textures/scarecrow.glb", 10, 10, 10, 1);
 
-        loadObject("./textures/result/harvester.glb", 10, 0, 40, 1);
+        const harverster_position = {x:10,y:0,z:40}
+        loadObject("./textures/result/harvester.glb", harverster_position.x, harverster_position.y, harverster_position.z, 1);
 
         // loadObject("./textures/wooden_fence.glb", 10, 0.75, 10, 1);
 
@@ -325,17 +326,23 @@
         var onPointerLockChange = function () {
           controls.enabled = document.pointerLockElement === document.body;
         };
-        const harversterState = false;
+        var harversterState = false;
         function enterHarvester() {
-          const harverster = objects.find((o) => o.sName.includes("harvester"));
           // calculate distance between harvester and the current camera/player
+          const harverster = objects.find((o) => o.sName.includes("harvester"));
           const distance = camera.position.distanceTo(harverster.position);
           // console.log(distance);
-          if (!harversterState && distance < 5) {
-            // exit harvester
-            console.log("exit harvester");
-          } else {
+          if (harversterState ==false && distance < 5) {
+            camera.position.x = harverster_position.x
+            camera.position.y = 5
+            camera.position.z = harverster_position.z
+            harversterState = true
+          } else if(harversterState == true) {
             // enter harvester
+            camera.position.x = harverster_position.x+2
+            camera.position.y = 5
+            camera.position.z = harverster_position.z+2
+            harversterState = false
           }
         }
 
