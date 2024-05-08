@@ -56,47 +56,101 @@
         objects[objects.length - 1].sName = objectFile;
       }
 
-      function makeWalls(
-        object,
-        startX,
-        startY,
-        width,
-        height,
-        entryX,
-        entryY
-      ) {
-        let spacing = 5;
-        for (let i = 2; i < width; i++) {
-          loadObject(object, startX + i * spacing, 0.75, startY, 1, {
+      // function makeWalls(
+      //   object,
+      //   startX,
+      //   startY,
+      //   width,
+      //   height,
+      //   entryX,
+      //   entryY
+      // ) {
+      //   let spacing = 5 * 0.975;
+      //   for (let i = 2; i < width; i++) {
+      //     loadObject(object, startX + i * spacing, 0.75, startY, 1, {
+      //       rotation: { x: 0, y: 90, z: 0 },
+      //     });
+      //   }
+      //   for (let i = 0; i < width - 1; i++) {
+      //     loadObject(
+      //       object,
+      //       startX + i * spacing,
+      //       0.75,
+      //       startY + (height - 1) * spacing,
+      //       1,
+      //       { rotation: { x: 0, y: 270, z: 0 } }
+      //     );
+      //   }
+      //   for (let i = 1; i < height - 1; i++) {
+      //     loadObject(object, startX, 0.75, startY + i * spacing, 1, {
+      //       rotation: { x: 0, y: 180, z: 0 },
+      //     });
+      //   }
+      //   for (let i = 1; i < height; i++) {
+      //     loadObject(
+      //       object,
+      //       startX + (width - 1) * spacing,
+      //       0.75,
+      //       startY + i * spacing,
+      //       1
+      //       // { rotation: { x: 0, y: 270, z: 50 } }
+      //     );
+      //   }
+      // }
+      async function makeWalls(objectFile, startX, startY, width, height) {
+        const spacing = 5 * 0.975;
+        const positionsAndRotations = [
+          ...Array.from({ length: width - 2 }, (_, i) => ({
+            position: [startX + (i + 2) * spacing, 0.75, startY],
             rotation: { x: 0, y: 90, z: 0 },
-          });
-        }
-        for (let i = 0; i < width - 1; i++) {
-          loadObject(
-            object,
-            startX + i * spacing,
-            0.75,
-            startY + (height - 1) * spacing,
-            1,
-            { rotation: { x: 0, y: 270, z: 0 } }
-          );
-        }
-        for (let i = 1; i < height - 1; i++) {
-          loadObject(object, startX, 0.75, startY + i * spacing, 1, {
+          })),
+          ...Array.from({ length: width - 1 }, (_, i) => ({
+            position: [
+              startX + i * spacing,
+              0.75,
+              startY + (height - 1) * spacing,
+            ],
+            rotation: { x: 0, y: 270, z: 0 },
+          })),
+          ...Array.from({ length: height - 1 }, (_, i) => ({
+            position: [startX, 0.75, startY + (i + 1) * spacing],
             rotation: { x: 0, y: 180, z: 0 },
-          });
-        }
-        for (let i = 1; i < height; i++) {
-          loadObject(
-            object,
-            startX + (width - 1) * spacing,
-            0.75,
-            startY + i * spacing,
-            1
-            // { rotation: { x: 0, y: 270, z: 50 } }
+          })),
+          ...Array.from({ length: height }, (_, i) => ({
+            position: [
+              startX + (width - 1) * spacing,
+              0.75,
+              startY + (i + 1) * spacing,
+            ],
+          })),
+        ];
+
+        const loader = new THREE.GLTFLoader();
+
+        for (const { position, rotation } of positionsAndRotations) {
+          // Load the object for each position
+          loader.load(
+            objectFile,
+            (gltf) => {
+              const object = gltf.scene;
+              object.position.set(...position);
+              object.scale.set(1, 1, 1);
+              object.castShadow = true;
+              object.receiveShadow = true;
+              if (rotation) {
+                object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
+                object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
+                object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+              }
+              scene.add(object);
+              addObjectToCheck(object, objectFile);
+            },
+            undefined,
+            (error) => console.error(`Failed to load object: ${error}`)
           );
         }
       }
+
       // loadObject("./textures/wooden_fence.glb", 10, 0.75, 15, 1);
       // loadObject("./textures/wooden_fence.glb", startX + i * spacing, 0.75, 15, 1);
       // loadObject("./textures/wooden_fence.glb", 10, 0.75, 15, 1);
@@ -151,7 +205,7 @@
 
         // loadObject("./textures/wooden_fence.glb", 10, 0.75, 10, 1);
 
-        makeWalls("./textures/wooden_fence.glb", 20, 20, 5, 5);
+        makeWalls("./textures/wooden_fence.glb", 20, 20, 5, 10);
 
         const windmill_location = { x: 20, y: 0, z: 10 };
         loadObject(
