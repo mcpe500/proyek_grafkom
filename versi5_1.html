@@ -191,7 +191,6 @@
       }
 
       function rotate(object, { x = 0, y = 0, z = 0 } = {}) {
-        // console.log(object )
         if (object === undefined) return;
 
         const { degToRad } = THREE.MathUtils;
@@ -212,6 +211,8 @@
 
         loadObject("./textures/barn.glb", -20, 2.5, 20, 1);
         loadObject("./textures/scarecrow.glb", 10, 10, 10, 1);
+
+        loadObject("./textures/result/harvester.glb", 10, 0, 40, 1);
 
         // loadObject("./textures/wooden_fence.glb", 10, 0.75, 10, 1);
 
@@ -242,7 +243,6 @@
             },
           }
         );
-        console.log(objects);
 
         var cloudFiles = [
           "./textures/cloud_1.glb",
@@ -325,6 +325,19 @@
         var onPointerLockChange = function () {
           controls.enabled = document.pointerLockElement === document.body;
         };
+        const harversterState = false;
+        function enterHarvester() {
+          const harverster = objects.find((o) => o.sName.includes("harvester"));
+          // calculate distance between harvester and the current camera/player
+          const distance = camera.position.distanceTo(harverster.position);
+          // console.log(distance);
+          if (!harversterState && distance < 5) {
+            // exit harvester
+            console.log("exit harvester");
+          } else {
+            // enter harvester
+          }
+        }
 
         var onKeyDown = function (event) {
           switch (event.keyCode) {
@@ -347,6 +360,9 @@
             case 50: // '2' untuk eagle eye view
               eagleEyeMode = true;
               switchToEagleEyeMode();
+              break;
+            case 69: // E buat enter tractor/harverset
+              enterHarvester();
               break;
           }
         };
