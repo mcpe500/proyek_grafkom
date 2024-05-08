@@ -36,15 +36,18 @@
       var objects = [];
       var eagleEyeMode = false;
 
-      var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-      var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-      directionalLight.position.set(0, 0, 0);
-      var hemisphereLight = new THREE.HemisphereLight(0xffffff, 1);
-      hemisphereLight.position.set(0, 0, 0);
-      var shadowSize = 150;
-      var orbitRadius = 100;
       var sunAngle = 0;
       var maxSunAngle = Math.PI;
+      var sunLightColor = 0xffffcc;
+      var moonLightColor = 0xeeeeee;
+      var sunLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      var moonLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      var hemisphereDay = new THREE.HemisphereLight(0xffffff, 0.5);
+
+      var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      var shadowSize = 150;
+      var orbitRadius = 150;
+      var dayNightCycle = 0;
 
       var eagleEyeCameraPosition = new THREE.Vector3(30, 20, 30);
       var eagleEyeCameraLookAt = new THREE.Vector3(0, 0, 0);
@@ -106,33 +109,45 @@
         object.rotation.z += degToRad(z);
       }
 
-      async function makeWalls(objectFile, startX, startY, width, height) {
+      async function makeWalls(objectFile, startX, startZ, w, h) {
+        const width = w + 1;
+        const height = h + 1;
         const spacing = 5 * 0.975;
-        const positionsAndRotations = [
-          ...Array.from({ length: width - 2 }, (_, i) => ({
-            position: [startX + (i + 2) * spacing, 0.75, startY],
+        const positionsAndRotations = [];
+
+        for (let i = 2; i < width; i++) {
+          positionsAndRotations.push({
+            position: [startX + i * spacing, 0.75, startZ],
             rotation: { x: 0, y: 90, z: 0 },
-          })),
-          ...Array.from({ length: width - 1 }, (_, i) => ({
+          });
+        }
+        for (let i = 0; i < width - 1; i++) {
+          positionsAndRotations.push({
             position: [
               startX + i * spacing,
               0.75,
-              startY + (height - 1) * spacing,
+              startZ + (height - 1) * spacing,
             ],
             rotation: { x: 0, y: 270, z: 0 },
-          })),
-          ...Array.from({ length: height - 1 }, (_, i) => ({
-            position: [startX, 0.75, startY + (i + 1) * spacing],
+          });
+        }
+        for (let i = 1; i < height - 1; i++) {
+          positionsAndRotations.push({
+            position: [startX, 0.75, startZ + i * spacing],
             rotation: { x: 0, y: 180, z: 0 },
-          })),
-          ...Array.from({ length: height }, (_, i) => ({
+          });
+        }
+        for (let i = 1; i < height; i++) {
+          positionsAndRotations.push({
             position: [
               startX + (width - 1) * spacing,
               0.75,
-              startY + (i + 1) * spacing,
+              startZ + i * spacing,
             ],
-          })),
-        ];
+            rotation: { x: 0, y: 0, z: 0 },
+          });
+        }
+        const loader = new THREE.GLTFLoader();
 
         for (const { position, rotation } of positionsAndRotations) {
           loader.load(
@@ -156,7 +171,6 @@
           );
         }
       }
-
       function init() {
         scene = new THREE.Scene();
         renderer = new THREE.WebGLRenderer();
@@ -165,17 +179,27 @@
         document.body.appendChild(renderer.domElement);
         renderer.setSize(window.innerWidth, window.innerHeight);
 
-        scene.add(hemisphereLight);
+        scene.add(hemisphereDay);
 
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        directionalLight.shadow.camera.top += shadowSize;
-        directionalLight.shadow.camera.bottom -= shadowSize;
-        directionalLight.shadow.camera.left -= shadowSize;
-        directionalLight.shadow.camera.right += shadowSize;
-        scene.add(directionalLight);
-        scene.add(new THREE.CameraHelper(directionalLight.shadow.camera));
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.top += shadowSize;
+        sunLight.shadow.camera.bottom -= shadowSize;
+        sunLight.shadow.camera.left -= shadowSize;
+        sunLight.shadow.camera.right += shadowSize;
+        scene.add(sunLight);
+        scene.add(new THREE.CameraHelper(sunLight.shadow.camera));
+
+        moonLight.castShadow = true;
+        moonLight.shadow.mapSize.width = 2048;
+        moonLight.shadow.mapSize.height = 2048;
+        moonLight.shadow.camera.top += shadowSize;
+        moonLight.shadow.camera.bottom -= shadowSize;
+        moonLight.shadow.camera.left -= shadowSize;
+        moonLight.shadow.camera.right += shadowSize;
+        scene.add(moonLight);
+        scene.add(new THREE.CameraHelper(moonLight.shadow.camera));
 
         const windmill_location = { x: 20, y: 0, z: 10 };
         loadObject(
@@ -203,10 +227,9 @@
           }
         );
 
-        makeWalls("./textures/wooden_fence.glb", 20, 20, 5, 10);
-        loadObject("./textures/barn.glb", -20, 2.8, 20, 1);
+        makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
+        loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
-        loadObject("./textures/wooden_fence.glb", 10, 0, 10, 1);
 
         var cloudFiles = [
           "./textures/cloud_1.glb",
@@ -232,33 +255,25 @@
         var cloudGroup = new THREE.Group();
         for (var i = 0; i < 30; i++) {
           for (var j = 0; j < cloudFiles.length; j++) {
-            var x = Math.random() * 400 - 200;
+            var x = Math.random() * 500 - 200;
             var y = Math.random() * 20 + 30;
-            var z = Math.random() * 400 - 200;
+            var z = Math.random() * 500 - 200;
             loadCloud(cloudFiles[j], x, y, z);
           }
         }
         scene.add(cloudGroup);
         cloudGroup.add(ambientLight);
 
-        var grassGeometry = new THREE.PlaneGeometry(200, 200);
-        var grassMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
-        var grass = new THREE.Mesh(grassGeometry, grassMaterial);
-        grass.receiveShadow = true;
-        grass.rotation.x = -Math.PI / 2;
-        grass.position.set(0, 0, 0);
-        scene.add(grass);
-
-        // var fieldGeometry = new THREE.PlaneGeometry(50, 50);
-        // var fieldMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
-        // var field = new THREE.Mesh(fieldGeometry, fieldMaterial);
-        // field.rotation.x = -Math.PI / 2;
-        // field.receiveShadow = true;
-        // field.position.set(0, 0.005, 0);
-        // scene.add(field);
+        var floorGeometry = new THREE.PlaneGeometry(250, 250);
+        var floorMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
+        var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.receiveShadow = true;
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(0, 0, 0);
+        scene.add(floor);
 
         scene.background = new THREE.Color(0x87ceeb);
-        scene.fog = new THREE.Fog(0x87ceeb, 50, 200);
+        scene.fog = new THREE.Fog(0x87ceeb, 50, 190);
 
         camera = new THREE.PerspectiveCamera(
           50,
@@ -380,32 +395,74 @@
         rotate(baling_baling_windmill, { x: 1, y: 0, z: 0 });
 
         if (sunAngle < maxSunAngle) {
-          sunAngle += 0.001;
+          sunAngle += 0.01;
         } else {
-          sunAngle = 0; // Kembali ke 0 derajat setelah mencapai 180 derajat
+          sunAngle = 0;
+          dayNightCycle = (dayNightCycle + 1) % 2;
         }
 
-        directionalLight.position.x = Math.cos(sunAngle) * orbitRadius;
-        directionalLight.position.y = Math.sin(sunAngle) * orbitRadius;
-        directionalLight.position.z = 10;
-        hemisphereLight.position.x = Math.cos(sunAngle) * orbitRadius;
-        hemisphereLight.position.y = Math.sin(sunAngle) * orbitRadius;
-        hemisphereLight.position.z = 10;
+        sunLight.position.x = Math.cos(sunAngle) * orbitRadius;
+        sunLight.position.y = Math.sin(sunAngle) * orbitRadius;
+        sunLight.position.z = 0;
 
-        // Mengatur warna langit berdasarkan posisi matahari
+        hemisphereDay.position.x = Math.cos(sunAngle) * orbitRadius;
+        hemisphereDay.position.y = Math.sin(sunAngle) * orbitRadius;
+        hemisphereDay.position.z = 0;
+
+        moonLight.position.x = Math.cos(sunAngle) * orbitRadius;
+        moonLight.position.y = Math.sin(sunAngle) * orbitRadius;
+        moonLight.position.z = 0;
+
         var skyColor;
-        if (sunAngle < Math.PI / 4) {
-          // Pagi (0 - 45 derajat)
-          skyColor = new THREE.Color(0.8, 0.6, 0.2); // Warna langit pagi
-        } else if (sunAngle < Math.PI / 2) {
-          // Siang (45 - 90 derajat)
-          skyColor = new THREE.Color(0.2, 0.6, 0.8); // Warna langit siang
-        } else if (sunAngle < (3 * Math.PI) / 4) {
-          // Sore (90 - 135 derajat)
-          skyColor = new THREE.Color(0.8, 0.4, 0.2); // Warna langit sore
+        var sunriseColor = new THREE.Color(0.8, 0.6, 0.2);
+        var morningColor = new THREE.Color(0.2, 0.6, 0.8);
+        var noonColor = new THREE.Color(0.4, 0.8, 1.0);
+        var eveningColor = new THREE.Color(0.8, 0.4, 0.2);
+        var sunsetColor = new THREE.Color(0.6, 0.3, 0.1);
+        var nightColor = new THREE.Color(0.05, 0.05, 0.2);
+
+        var transitionProgress = sunAngle / maxSunAngle;
+        if (dayNightCycle === 0) {
+          if (transitionProgress < 0.25) {
+            skyColor = sunriseColor.lerp(
+              morningColor,
+              transitionProgress / 0.25
+            );
+            sunLight.intensity = (transitionProgress / 0.25) * 0.5;
+            moonLight.intensity = 0.5 - (transitionProgress / 0.25) * 0.5;
+            hemisphereDay.intensity = (transitionProgress / 0.25) * 0.5;
+          } else if (transitionProgress < 0.5) {
+            skyColor = morningColor.lerp(
+              noonColor,
+              (transitionProgress - 0.25) / 0.25
+            );
+          } else if (transitionProgress < 0.75) {
+            skyColor = noonColor.lerp(
+              eveningColor,
+              (transitionProgress - 0.5) / 0.25
+            );
+          } else {
+            skyColor = eveningColor.lerp(
+              sunsetColor,
+              (transitionProgress - 0.75) / 0.25
+            );
+            moonLight.intensity = ((transitionProgress - 0.75) / 0.25) * 0.25;
+            hemisphereDay.intensity =
+              0.5 - ((transitionProgress - 0.75) / 0.25) * 0.5;
+          }
         } else {
-          // Malam (135 - 180 derajat)
-          skyColor = new THREE.Color(0.1, 0.1, 0.4); // Warna langit malam
+          if (transitionProgress < 0.1) {
+            skyColor = sunsetColor.lerp(nightColor, transitionProgress / 0.1);
+            moonLight.intensity = (transitionProgress / 0.1) * 0.25;
+            sunLight.intensity = 0.5 - (transitionProgress / 0.1) * 0.5;
+          } else if (transitionProgress < 0.9) {
+            skyColor = nightColor;
+          } else {
+            skyColor = nightColor.lerp(
+              sunriseColor,
+              (transitionProgress - 0.9) / 0.1
+            );
+          }
         }
         scene.background = skyColor;
 
@@ -420,25 +477,24 @@
           var intersects = raycaster.intersectObjects(scene.children, true);
 
           if (intersects.length > 0) {
-            if (intersects[0].distance - 1 > 0) {
+            if (intersects[0].distance - 1.5 > 0) {
               controls.getObject().position.y -= 0.6;
             }
           }
         }
-        checkCollision();
-        // Menggerakkan awan
-        for (var i = 0; i < clouds.length; i++) {
-          clouds[i].position.x += 0.1;
 
-          if (clouds[i].position.x > 250) {
-            clouds[i].position.x = -250;
+        checkCollision();
+        for (var i = 0; i < clouds.length; i++) {
+          clouds[i].position.x -= 0.1;
+
+          if (clouds[i].position.x < -300) {
+            clouds[i].position.x = 300;
             clouds[i].position.y = Math.random() * 20 + 30;
-            clouds[i].position.z = Math.random() * 400 - 200;
+            clouds[i].position.z = Math.random() * 500 - 200;
           }
         }
 
         if (true) {
-          // Kontrol untuk first person mode
           if (moveForward)
             controls
               .getObject()
