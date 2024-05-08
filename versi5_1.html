@@ -51,11 +51,12 @@
         camera.lookAt(eagleEyeCameraLookAt);
       }
 
-      function addObjectToCheck(object) {
+      function addObjectToCheck(object, objectFile) {
         objects.push(object);
+        objects[objects.length - 1].sName = objectFile;
       }
 
-      function loadObject(objectFile, x, y, z, scale) {
+      function loadObject(objectFile, x, y, z, scale, options = {}) {
         var loader = new THREE.GLTFLoader();
         loader.load(objectFile, function (gltf) {
           var object = gltf.scene;
@@ -63,9 +64,39 @@
           object.scale.set(scale, scale, scale);
           object.castShadow = true;
           object.receiveShadow = true;
+          if (options) {
+            if (options.rotation) {
+              object.rotation.x = THREE.MathUtils.degToRad(options.rotation.x);
+              object.rotation.y = THREE.MathUtils.degToRad(options.rotation.y);
+              object.rotation.z = THREE.MathUtils.degToRad(options.rotation.z);
+            }
+            // i want to if i loaded an object that is not centered and i want to change the center point
+            if (options.center) {
+              // this is currently not making the center position changing, but it only move the object, i want to change the center position, so when i rotate it will rotate based on that coords
+              // object.position.set(
+              //   x + options.center.x,
+              //   y + options.center.y,
+              //   z + options.center.z
+              // );
+              object.position.x += options.center.x;
+              object.position.y += options.center.y;
+              object.position.z += options.center.z;
+
+            }
+          }
           scene.add(object);
-          addObjectToCheck(object);
+          addObjectToCheck(object, objectFile);
         });
+      }
+
+      function rotate(object, { x = 0, y = 0, z = 0 } = {}) {
+        // console.log(object )
+        if (object === undefined) return;
+
+        const { degToRad } = THREE.MathUtils;
+        object.rotation.x += degToRad(x);
+        object.rotation.y += degToRad(y);
+        object.rotation.z += degToRad(z);
       }
 
       function init() {
@@ -81,8 +112,33 @@
         loadObject("./textures/barn.glb", -20, 2.5, 20, 1);
         loadObject("./textures/scarecrow.glb", 10, 10, 10, 1);
         loadObject("./textures/wooden_fence.glb", 10, 0, 10, 1);
-        loadObject("./textures/result/kaki_windmill.glb", 10, 0, 10, 0.05);
-        loadObject("./textures/result/baling_baling_windmill.glb", 10, 0, 10, 0.05);
+
+        const windmill_location = { x: 20, y: 0, z: 10 };
+        loadObject(
+          "./textures/result/kaki_windmill.glb",
+          windmill_location.x,
+          windmill_location.y,
+          windmill_location.z,
+          0.05,
+          {
+            rotation: { x: 90, y: 0, z: 0 },
+          }
+        );
+        loadObject(
+          "./textures/result/baling_baling_windmill.glb",
+          windmill_location.x + 1.2,
+          windmill_location.y + 28.5,
+          windmill_location.z * 1,
+          0.05,
+          {
+            center: {
+              x: 0,
+              y: 0,
+              z: 0,
+            },
+          }
+        );
+        console.log(objects)
 
         var cloudFiles = [
           "./textures/cloud_1.glb",
@@ -278,6 +334,13 @@
           }
         }
         checkCollision();
+
+        // rotate windmill
+        var baling_baling_windmill = objects.find((o) =>
+          o.sName.includes("baling_baling_windmill")
+        );
+        rotate(baling_baling_windmill, { x: 1, y: 0, z: 0 });
+
         // Menggerakkan awan
         for (var i = 0; i < clouds.length; i++) {
           clouds[i].castShadow = true;
