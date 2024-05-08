@@ -61,51 +61,34 @@
                 var object = gltf.scene;
                 object.position.set(x, y, z);
                 object.scale.set(scale, scale, scale);
+                object.castShadow = true;
+                object.receiveShadow = true;
                 scene.add(object);
                 addObjectToCheck(object);
             });
         }
 
+
         function init() {
             scene = new THREE.Scene();
             renderer = new THREE.WebGLRenderer();
-            renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFShadowMap;
+            renderer.shadowMap.width = 100;
+            renderer.shadowMap.height = 100;
+            renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            var hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x080820, 1);
-            scene.add(hemisphereLight);
-            
-            var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-            directionalLight.position.set(0, 10, 0);
-            scene.add(directionalLight);
-
-            var grassGeometry = new THREE.PlaneGeometry(200, 200);
-            var grassMaterial = new THREE.MeshStandardMaterial({ color: 0x00FF00 });
-            var grass = new THREE.Mesh(grassGeometry, grassMaterial);
-            grass.rotation.x = -Math.PI / 2;
-            grass.receiveShadow = true;
-            scene.add(grass);
-
-            var fieldGeometry = new THREE.PlaneGeometry(50, 50);
-            var fieldMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
-            var fieldMesh = new THREE.Mesh(fieldGeometry, fieldMaterial);
-            fieldMesh.rotation.x = -Math.PI / 2;
-            fieldMesh.position.set(0, 0.1, 0);
-            scene.add(fieldMesh);
-
-            scene.background = new THREE.Color(0x87CEEB);
-          
             loadObject("./textures/barn.glb", -20, 2.5, 20, 1);
-            loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
-            loadObject("./textures/fence.glb", 10, 0, 10, 1);
-
+            loadObject("./textures/scarecrow.glb", 10, 10, 10, 1);
+            loadObject("./textures/wooden_fence.glb", 10, 0, 10, 1);
 
             var cloudFiles = ["./textures/cloud_1.glb", "./textures/cloud_2.glb", "./textures/cloud_3.glb", "./textures/cloud_4.glb"];
             function loadCloud(cloudFile, x, y, z) {
                 var loader = new THREE.GLTFLoader();
                 loader.load(cloudFile, function (gltf) {
                     var cloud = gltf.scene;
+                    cloud.castShadow = true;
                     cloud.position.set(x, y, z);
                     cloud.scale.set(5, 5, 5);
                     scene.add(cloud);
@@ -125,6 +108,36 @@
 
             var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             cloudGroup.add(ambientLight);
+
+            var grassGeometry = new THREE.PlaneGeometry(200, 200);
+            var grassMaterial = new THREE.MeshStandardMaterial({ color: 0x00FF00 });
+            var grass = new THREE.Mesh(grassGeometry, grassMaterial);
+            grass.castShadow = true;
+            grass.receiveShadow = true;
+            grass.rotation.x = -Math.PI / 2;
+            scene.add(grass);
+            
+            // var fieldGeometry = new THREE.PlaneGeometry(50, 50);
+            // var fieldMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
+            // var field = new THREE.Mesh(fieldGeometry, fieldMaterial);
+            // field.rotation.x = -Math.PI / 2;
+            // field.receiveShadow = true;
+            // field.position.set(0, 0.005, 0);
+            // scene.add(field);
+
+            scene.background = new THREE.Color(0x87CEEB);
+
+            // Menambahkan hemisphere light
+            var hemisphereLight = new THREE.HemisphereLight(0xffffff, 1);
+            hemisphereLight.position.set(50, 100, 50);
+            scene.add(hemisphereLight);
+
+            // Menambahkan directional light
+            var directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(50, 100, 50);
+            directionalLight.target.position.set(0, 0, 0);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
 
             scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
 
@@ -246,7 +259,7 @@
                 }
             }
 
-            if (!eagleEyeMode) {
+            if (true) {
                 // Kontrol untuk first person mode
                 if (moveForward)
                     controls
