@@ -27,12 +27,24 @@
         var moveBackward = false;
         var moveLeft = false;
         var moveRight = false;
+
         var raycaster = new THREE.Raycaster();
         var downRay = new THREE.Vector3(0, -0.1, 0);
         var previousPosition = new THREE.Vector3();
+
         var clouds = [];
         var objects = [];
         var eagleEyeMode = false;
+        
+        var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(0, 70, 0);
+        var hemisphereLight = new THREE.HemisphereLight(0xffffff, 1);
+        hemisphereLight.position.set(0, 70, 0);
+        var shadowSize = 150;
+        var orbitRadius = 100; // Radius orbit matahari
+        var sunAngle = 0;
+
         var eagleEyeCameraPosition = new THREE.Vector3(30, 20, 30);
         var eagleEyeCameraLookAt = new THREE.Vector3(0, 0, 0);
         var firstPersonCameraPosition = new THREE.Vector3();
@@ -61,7 +73,12 @@
                 var object = gltf.scene;
                 object.position.set(x, y, z);
                 object.scale.set(scale, scale, scale);
-                object.castShadow = true;
+                object.traverse(function(node){
+                    if(node.isMesh){
+                        node.receiveShadow = true;
+                        node.castShadow = true
+                    }
+                })
                 object.receiveShadow = true;
                 scene.add(object);
                 addObjectToCheck(object);
@@ -73,14 +90,24 @@
             scene = new THREE.Scene();
             renderer = new THREE.WebGLRenderer();
             renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFShadowMap;
-            renderer.shadowMap.width = 100;
-            renderer.shadowMap.height = 100;
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            
+            scene.add(hemisphereLight);
 
-            loadObject("./textures/barn.glb", -20, 2.5, 20, 1);
-            loadObject("./textures/scarecrow.glb", 10, 10, 10, 1);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 4096;
+            directionalLight.shadow.mapSize.height = 4096;
+            directionalLight.shadow.camera.top += shadowSize;
+            directionalLight.shadow.camera.bottom -= shadowSize;
+            directionalLight.shadow.camera.left -= shadowSize;
+            directionalLight.shadow.camera.right += shadowSize;
+            scene.add(directionalLight);
+            scene.add(new THREE.CameraHelper(directionalLight.shadow.camera));
+
+            loadObject("./textures/barn.glb", -20, 2.8, 20, 1);
+            loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
             loadObject("./textures/wooden_fence.glb", 10, 0, 10, 1);
 
             var cloudFiles = ["./textures/cloud_1.glb", "./textures/cloud_2.glb", "./textures/cloud_3.glb", "./textures/cloud_4.glb"];
@@ -88,9 +115,14 @@
                 var loader = new THREE.GLTFLoader();
                 loader.load(cloudFile, function (gltf) {
                     var cloud = gltf.scene;
-                    cloud.castShadow = true;
+                    cloud.receiveShadow = false;
                     cloud.position.set(x, y, z);
                     cloud.scale.set(5, 5, 5);
+                    cloud.traverse(function(node){
+                        if(node.isMesh){
+                            node.castShadow = true
+                        }
+                    });
                     scene.add(cloud);
                     clouds.push(cloud);
                 });
@@ -105,16 +137,14 @@
                 }
             }
             scene.add(cloudGroup);
-
-            var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             cloudGroup.add(ambientLight);
 
             var grassGeometry = new THREE.PlaneGeometry(200, 200);
-            var grassMaterial = new THREE.MeshStandardMaterial({ color: 0x00FF00 });
+            var grassMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
             var grass = new THREE.Mesh(grassGeometry, grassMaterial);
-            grass.castShadow = true;
             grass.receiveShadow = true;
             grass.rotation.x = -Math.PI / 2;
+            grass.position.set(0, 0, 0);
             scene.add(grass);
             
             // var fieldGeometry = new THREE.PlaneGeometry(50, 50);
@@ -126,19 +156,6 @@
             // scene.add(field);
 
             scene.background = new THREE.Color(0x87CEEB);
-
-            // Menambahkan hemisphere light
-            var hemisphereLight = new THREE.HemisphereLight(0xffffff, 1);
-            hemisphereLight.position.set(50, 100, 50);
-            scene.add(hemisphereLight);
-
-            // Menambahkan directional light
-            var directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(50, 100, 50);
-            directionalLight.target.position.set(0, 0, 0);
-            directionalLight.castShadow = true;
-            scene.add(directionalLight);
-
             scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
 
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -229,6 +246,14 @@
 
         function animate() {
             requestAnimationFrame(animate);
+            sunAngle += 0.001;
+            directionalLight.position.x = Math.cos(sunAngle) * orbitRadius;
+            directionalLight.position.y = Math.sin(sunAngle) * orbitRadius;
+            directionalLight.position.z = 0;
+            // hemisphereLight.position.x = Math.sin(time) * 20;
+            // hemisphereLight.position.y = Math.sin(time) * 20;
+            // hemisphereLight.position.z = Math.sin(time) * 20;
+
 
             var moveSpeed = 0.2;
             var moveVector = new THREE.Vector3();
@@ -249,9 +274,8 @@
             checkCollision();
             // Menggerakkan awan
             for (var i = 0; i < clouds.length; i++) {
-                clouds[i].castShadow = true;
-                clouds[i].receiveShadow = false;
                 clouds[i].position.x += 0.1;
+                
                 if (clouds[i].position.x > 250) {
                     clouds[i].position.x = -250;
                     clouds[i].position.y = Math.random() * 20 + 30;
