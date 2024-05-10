@@ -31,6 +31,7 @@
       var raycaster = new THREE.Raycaster();
       var downRay = new THREE.Vector3(0, -0.1, 0);
       var previousPosition = new THREE.Vector3();
+      var cameraOffset = new THREE.Vector3(-10, 5, 0);
 
       var clouds = [];
       var objects = [];
@@ -325,11 +326,20 @@
             eagleEyeMode = true;
             switchToEagleEyeMode();
             harversterState = true;
-            harvesterPosition.copy(harvester.position);
-            harvesterRotation.copy(harvester.rotation);
+
+            camera.position.x = harverster.position.x + 10;
+            camera.position.y = 5;
+            camera.position.z = harverster.position.z;
+
+            camera.lookAt(harverster.position);
+            // harvesterPosition.copy(harvester.position);
+            // harvesterRotation.copy(harvester.rotation);
           } else if (harversterState == true) {
             eagleEyeMode = false;
             switchToFirstPersonMode();
+            camera.position.x = harverster.position.x + 2;
+            camera.position.y = 5;
+            camera.position.z = harverster.position.z + 2;
             harversterState = false;
           }
         }
@@ -528,40 +538,109 @@
           }
         }
         if (harversterState) {
-          var moveSpeed = 0.2;
-          var moveVector = new THREE.Vector3();
           const harvester = objects.find((o) => o.sName.includes("harvester"));
-
           if (moveForward) {
-            moveVector.set(0, 0, -moveSpeed);
-            moveVector.applyEuler(harvesterRotation);
-            harvesterPosition.add(moveVector);
+            controls
+              .getObject()
+              .position.add(moveVector.clone().multiplyScalar(moveSpeed));
           }
           if (moveBackward) {
-            moveVector.set(0, 0, moveSpeed);
-            moveVector.applyEuler(harvesterRotation);
-            harvesterPosition.add(moveVector);
+            controls
+              .getObject()
+              .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
           }
           if (moveLeft) {
-            moveVector.set(-moveSpeed, 0, 0);
-            moveVector.applyEuler(harvesterRotation);
-            harvesterPosition.add(moveVector);
+            controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(controls.getObject().up)
+                  .negate()
+                  .multiplyScalar(moveSpeed)
+              );
           }
           if (moveRight) {
-            moveVector.set(moveSpeed, 0, 0);
-            moveVector.applyEuler(harvesterRotation);
-            harvesterPosition.add(moveVector);
+            controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(controls.getObject().up)
+                  .multiplyScalar(moveSpeed)
+              );
           }
-          harvester.position.copy(harvesterPosition);
-          harvester.rotation.copy(harvesterRotation);
+          // moveVector.applyEuler(harvester.rotation)
+          harvester.position.x = camera.position.x - 10;
+          harvester.position.y = 0;
+          harvester.position.z = camera.position.z;
 
-          var cameraOffset = new THREE.Vector3(0, 5, -10);
-          cameraOffset.applyEuler(harvesterRotation);
-          const rotatedOffset = cameraOffset
-            .clone()
-            .applyEuler(harvesterRotation);
-          camera.position.copy(harvesterPosition).add(rotatedOffset);
-          camera.lookAt(harvesterPosition);
+          // harvester.rotation.x = camera.rotation.x;
+          harvester.rotation.y = camera.rotation.y;
+          // harvester.rotation.z = camera.rotation.z;
+          // var moveSpeed = 0.2;
+          // var moveVector = new THREE.Vector3();
+          // const harvester = objects.find((o) => o.sName.includes("harvester"));
+          // if (moveForward) {
+          //   controls
+          //     .getObject()
+          //     .position.add(moveVector.clone().multiplyScalar(moveSpeed));
+          //   harvester.position.x = camera.position.x;
+          //   harvester.position.y = 0;
+          //   harvester.position.z = camera.position.z;
+          //   console.log("Moving forward");
+          // }
+          // if (moveBackward) {
+          //   console.log("Moving backward");
+          // }
+          // if (moveLeft) {
+          //   console.log("Moving left");
+          // }
+          // if (moveRight) {
+          //   console.log("Moving right");
+          // }
+          // if (moveForward) {
+          // moveVector.set(0, 0, -moveSpeed);
+          // moveVector.applyEuler(harvesterRotation);
+          // harvesterPosition.add(moveVector);
+          // }
+          // if (moveBackward) {
+          //   moveVector.set(0, 0, moveSpeed);
+          //   moveVector.applyEuler(harvesterRotation);
+          //   harvesterPosition.add(moveVector);
+          // }
+          // if (moveLeft) {
+          //   moveVector.set(-moveSpeed, 0, 0);
+          //   moveVector.applyEuler(harvesterRotation);
+          //   harvesterPosition.add(moveVector);
+          // }
+          // if (moveRight) {
+          //   moveVector.set(moveSpeed, 0, 0);
+          //   moveVector.applyEuler(harvesterRotation);
+          //   harvesterPosition.add(moveVector);
+          // }
+
+          // harvester.position.copy(harvesterPosition);
+          // var cameraOffset = new THREE.Vector3(-10, 5, 0);
+          // harvester.position.x = camera.position.x + 10;
+          // harvester.position.y = camera.position.y - 5;
+          // harvester.position.z = camera.position.z - 0;
+
+          // camera.position.x = harvester.position.x - 10;
+          // camera.position.y = harvester.position.y + 5;
+          // camera.position.z = harvester.position.z + 0;
+
+          // // harvester.rotation.copy(harvesterRotation);
+          // // harvester.rotation.x = 90;
+          // harvester.rotation.y = camera.rotation.y;
+          // harvester.rotation.z = 90;
+
+          // cameraOffset.applyEuler(harvesterRotation);
+          // const rotatedOffset = cameraOffset
+          //   .clone()
+          //   .applyEuler(harvester.rotation);
+          // camera.position.copy(harvesterPosition).add(rotatedOffset);
+          // camera.lookAt(harvesterPosition);
         } else {
           if (moveForward)
             controls

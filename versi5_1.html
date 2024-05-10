@@ -333,15 +333,15 @@
           const distance = camera.position.distanceTo(harverster.position);
           // console.log(distance);
           if (harversterState ==false && distance < 5) {
-            camera.position.x = harverster_position.x
+            camera.position.x = harverster.position.x
             camera.position.y = 5
-            camera.position.z = harverster_position.z
+            camera.position.z = harverster.position.z
             harversterState = true
           } else if(harversterState == true) {
             // enter harvester
-            camera.position.x = harverster_position.x+2
+            camera.position.x = harverster.position.x+2
             camera.position.y = 5
-            camera.position.z = harverster_position.z+2
+            camera.position.z = harverster.position.z+2
             harversterState = false
           }
         }
