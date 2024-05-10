@@ -36,6 +36,11 @@
       var objects = [];
       var eagleEyeMode = false;
 
+      var harversterState = false;
+      var harvester_position = { x: 10, y: 0.1, z: 40 };
+      var harvesterPosition = new THREE.Vector3();
+      var harvesterRotation = new THREE.Euler(0, -Math.PI, 0);
+
       var sunAngle = 0;
       var maxSunAngle = Math.PI;
       var sunLightColor = 0xffffcc;
@@ -49,8 +54,16 @@
       var orbitRadius = 150;
       var dayNightCycle = 0;
 
-      var eagleEyeCameraPosition = new THREE.Vector3(30, 20, 30);
-      var eagleEyeCameraLookAt = new THREE.Vector3(0, 0, 0);
+      var eagleEyeCameraPosition = new THREE.Vector3(
+        harvester_position.x,
+        harvester_position.y + 5,
+        harvester_position.z
+      );
+      var eagleEyeCameraLookAt = new THREE.Vector3(
+        harvester_position.x,
+        harvester_position.y,
+        harvester_position.z
+      );
       var firstPersonCameraPosition = new THREE.Vector3();
       var firstPersonCameraRotation = new THREE.Euler();
       var loader = new THREE.GLTFLoader();
@@ -147,7 +160,6 @@
             rotation: { x: 0, y: 0, z: 0 },
           });
         }
-        const loader = new THREE.GLTFLoader();
 
         for (const { position, rotation } of positionsAndRotations) {
           loader.load(
@@ -156,8 +168,12 @@
               const object = gltf.scene;
               object.position.set(...position);
               object.scale.set(1, 1, 1);
-              object.castShadow = true;
-              object.receiveShadow = true;
+              object.traverse(function (node) {
+                if (node.isMesh) {
+                  node.receiveShadow = true;
+                  node.castShadow = true;
+                }
+              });
               if (rotation) {
                 object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
                 object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
@@ -230,6 +246,13 @@
         makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
         loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
+        loadObject(
+          "./textures/result/harvester.glb",
+          harvester_position.x,
+          harvester_position.y,
+          harvester_position.z,
+          1
+        );
 
         var cloudFiles = [
           "./textures/cloud_1.glb",
@@ -294,6 +317,22 @@
           controls.enabled = document.pointerLockElement === document.body;
         };
 
+        function enterHarvester() {
+          // calculate distance between harvester and the current camera/player
+          const harverster = objects.find((o) => o.sName.includes("harvester"));
+          const distance = camera.position.distanceTo(harverster.position);
+          if (harversterState == false && distance < 5) {
+            eagleEyeMode = true;
+            switchToEagleEyeMode();
+            harversterState = true;
+            harvesterPosition.copy(harvester.position);
+            harvesterRotation.copy(harvester.rotation);
+          } else if (harversterState == true) {
+            eagleEyeMode = false;
+            switchToFirstPersonMode();
+            harversterState = false;
+          }
+        }
         var onKeyDown = function (event) {
           switch (event.keyCode) {
             case 87: // W
@@ -308,13 +347,8 @@
             case 68: // D
               moveRight = true;
               break;
-            case 49: // '1' untuk first person view
-              eagleEyeMode = false;
-              switchToFirstPersonMode();
-              break;
-            case 50: // '2' untuk eagle eye view
-              eagleEyeMode = true;
-              switchToEagleEyeMode();
+            case 69: // E buat enter tractor/harverset
+              enterHarvester();
               break;
           }
         };
@@ -493,8 +527,42 @@
             clouds[i].position.z = Math.random() * 500 - 200;
           }
         }
+        if (harversterState) {
+          var moveSpeed = 0.2;
+          var moveVector = new THREE.Vector3();
+          const harvester = objects.find((o) => o.sName.includes("harvester"));
 
-        if (true) {
+          if (moveForward) {
+            moveVector.set(0, 0, -moveSpeed);
+            moveVector.applyEuler(harvesterRotation);
+            harvesterPosition.add(moveVector);
+          }
+          if (moveBackward) {
+            moveVector.set(0, 0, moveSpeed);
+            moveVector.applyEuler(harvesterRotation);
+            harvesterPosition.add(moveVector);
+          }
+          if (moveLeft) {
+            moveVector.set(-moveSpeed, 0, 0);
+            moveVector.applyEuler(harvesterRotation);
+            harvesterPosition.add(moveVector);
+          }
+          if (moveRight) {
+            moveVector.set(moveSpeed, 0, 0);
+            moveVector.applyEuler(harvesterRotation);
+            harvesterPosition.add(moveVector);
+          }
+          harvester.position.copy(harvesterPosition);
+          harvester.rotation.copy(harvesterRotation);
+
+          var cameraOffset = new THREE.Vector3(0, 5, -10);
+          cameraOffset.applyEuler(harvesterRotation);
+          const rotatedOffset = cameraOffset
+            .clone()
+            .applyEuler(harvesterRotation);
+          camera.position.copy(harvesterPosition).add(rotatedOffset);
+          camera.lookAt(harvesterPosition);
+        } else {
           if (moveForward)
             controls
               .getObject()
