@@ -188,6 +188,72 @@
           );
         }
       }
+
+      async function makeWheats(objectFile, startX, startZ, w, h) {
+        const width = w + 1;
+        const height = h + 1;
+        const spacing = 5 * 0.975;
+        const positionsAndRotations = [];
+
+        for (let i = 2; i < width; i++) {
+          positionsAndRotations.push({
+            position: [startX + i * spacing, 0.75, startZ],
+            rotation: { x: 0, y: 90, z: 0 },
+          });
+        }
+        for (let i = 0; i < width - 1; i++) {
+          positionsAndRotations.push({
+            position: [
+              startX + i * spacing,
+              0.75,
+              startZ + (height - 1) * spacing,
+            ],
+            rotation: { x: 0, y: 270, z: 0 },
+          });
+        }
+        for (let i = 1; i < height - 1; i++) {
+          positionsAndRotations.push({
+            position: [startX, 0.75, startZ + i * spacing],
+            rotation: { x: 0, y: 180, z: 0 },
+          });
+        }
+        for (let i = 1; i < height; i++) {
+          positionsAndRotations.push({
+            position: [
+              startX + (width - 1) * spacing,
+              0.75,
+              startZ + i * spacing,
+            ],
+            rotation: { x: 0, y: 0, z: 0 },
+          });
+        }
+
+        for (const { position, rotation } of positionsAndRotations) {
+          loader.load(
+            objectFile,
+            (gltf) => {
+              const object = gltf.scene;
+              object.position.set(...position);
+              object.scale.set(25, 25, 25);
+              object.traverse(function (node) {
+                if (node.isMesh) {
+                  node.receiveShadow = true;
+                  node.castShadow = true;
+                }
+              });
+              if (rotation) {
+                object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
+                object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
+                object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+              }
+              scene.add(object);
+              addObjectToCheck(object, objectFile);
+            },
+            undefined,
+            (error) => console.error(`Failed to load object: ${error}`)
+          );
+        }
+      }
       function init() {
         scene = new THREE.Scene();
         renderer = new THREE.WebGLRenderer();
@@ -245,8 +311,14 @@
         );
 
         makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
+        makeWheats("./textures/wheat.glb", -30, -30, 15, 15);
         loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
+        // for (let i = 0; i < 10; i++) {
+        //   for (let j = 0; j < 10; j++) {
+        //     loadObject("./textures/wheat.glb", 40, 0, -26, 25);
+        //   }
+        // }
         loadObject(
           "./textures/result/harvester.glb",
           harvester_position.x,
