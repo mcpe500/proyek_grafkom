@@ -192,40 +192,16 @@
       async function makeWheats(objectFile, startX, startZ, w, h) {
         const width = w + 1;
         const height = h + 1;
-        const spacing = 5 * 0.975;
+        const spacing = 2;
         const positionsAndRotations = [];
 
-        for (let i = 2; i < width; i++) {
-          positionsAndRotations.push({
-            position: [startX + i * spacing, 0.75, startZ],
-            rotation: { x: 0, y: 90, z: 0 },
-          });
-        }
-        for (let i = 0; i < width - 1; i++) {
-          positionsAndRotations.push({
-            position: [
-              startX + i * spacing,
-              0.75,
-              startZ + (height - 1) * spacing,
-            ],
-            rotation: { x: 0, y: 270, z: 0 },
-          });
-        }
-        for (let i = 1; i < height - 1; i++) {
-          positionsAndRotations.push({
-            position: [startX, 0.75, startZ + i * spacing],
-            rotation: { x: 0, y: 180, z: 0 },
-          });
-        }
-        for (let i = 1; i < height; i++) {
-          positionsAndRotations.push({
-            position: [
-              startX + (width - 1) * spacing,
-              0.75,
-              startZ + i * spacing,
-            ],
-            rotation: { x: 0, y: 0, z: 0 },
-          });
+        for (let i = 0; i < height; i++) {
+          for (let j = 0; j < width; j++) {
+            positionsAndRotations.push({
+              position: [startX + j * spacing, 0, startZ + i * spacing],
+              rotation: { x: 0, y: 90, z: 0 },
+            });
+          }
         }
 
         for (const { position, rotation } of positionsAndRotations) {
@@ -311,7 +287,7 @@
         );
 
         makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
-        makeWheats("./textures/wheat.glb", -30, -30, 15, 15);
+        makeWheats("./textures/wheat.glb", -25, 0, 10, 10);
         loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
         // for (let i = 0; i < 10; i++) {
