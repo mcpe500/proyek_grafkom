@@ -188,47 +188,126 @@
           );
         }
       }
-
       async function makeWheats(objectFile, startX, startZ, w, h) {
         const width = w + 1;
         const height = h + 1;
-        const spacing = 2;
-        const positionsAndRotations = [];
+        const spacing = 6;
+        const wheatInstances = [];
 
         for (let i = 0; i < height; i++) {
           for (let j = 0; j < width; j++) {
-            positionsAndRotations.push({
+            wheatInstances.push({
               position: [startX + j * spacing, 0, startZ + i * spacing],
-              rotation: { x: 0, y: 90, z: 0 },
+              rotation: [0, Math.PI / 2, 0],
             });
           }
         }
+        createInstancedObjects(objectFile, wheatInstances, 0.25);
 
-        for (const { position, rotation } of positionsAndRotations) {
-          loader.load(
-            objectFile,
-            (gltf) => {
-              const object = gltf.scene;
-              object.position.set(...position);
-              object.scale.set(25, 25, 25);
-              object.traverse(function (node) {
-                if (node.isMesh) {
-                  node.receiveShadow = true;
-                  node.castShadow = true;
-                }
-              });
-              if (rotation) {
-                object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
-                object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
-                object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+        // for (let i = 0; i < height; i++) {
+        //   for (let j = 0; j < width; j++) {
+        //     positionsAndRotations.push({
+        //       position: [startX + j * spacing, 0, startZ + i * spacing],
+        //       rotation: { x: 0, y: 90, z: 0 },
+        //     });
+        //   }
+        // }
+
+        // for (const { position, rotation } of positionsAndRotations) {
+        //   loader.load(
+        //     objectFile,
+        //     (gltf) => {
+        //       const object = gltf.scene;
+        //       object.position.set(...position);
+        //       object.scale.set(25, 25, 25);
+        //       object.traverse(function (node) {
+        //         if (node.isMesh) {
+        //           node.receiveShadow = true;
+        //           node.castShadow = true;
+        //         }
+        //       });
+        //       if (rotation) {
+        //         object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
+        //         object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
+        //         object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+        //       }
+        //       scene.add(object);
+        //       addObjectToCheck(object, objectFile);
+        //     },
+        //     undefined,
+        //     (error) => console.error(`Failed to load object: ${error}`)
+        //   );
+        // }
+      }
+      // function createInstancedObjects(objectFile, instances, scale) {
+      //   loader.load(objectFile, (gltf) => {
+      //     const mesh = gltf.scene.children[0];
+      //     console.log(mesh)
+      //     console.log(mesh.children[0])
+      //     if (!mesh) {
+      //       console.error("Mesh is undefined");
+      //       return;
+      //     }
+      //     if (!mesh.geometry) {
+      //       console.error("Mesh geometry is undefined");
+      //       return;
+      //     }
+      //     const geometry = mesh.geometry.isBufferGeometry
+      //       ? mesh.geometry
+      //       : new THREE.BufferGeometry().fromGeometry(mesh.geometry);
+
+      //     const material = mesh.material;
+      //     const instancedMesh = new THREE.InstancedMesh(
+      //       geometry,
+      //       material,
+      //       instances.length
+      //     );
+
+      //     for (let i = 0; i < instances.length; i++) {
+      //       const { position, rotation } = instances[i];
+      //       instancedMesh.setMatrixAt(
+      //         i,
+      //         new THREE.Matrix4()
+      //           .makeRotationFromEuler(new THREE.Euler(...rotation))
+      //           .setPosition(...position)
+      //       );
+      //     }
+
+      //     instancedMesh.scale.set(scale, scale, scale);
+      //     scene.add(instancedMesh);
+      //   });
+      // }
+      function createInstancedObjects(objectFile, instances, scale) {
+        loader.load(objectFile, (gltf) => {
+          gltf.scene.traverse((node) => {
+            if (node.isMesh) {
+              const geometry = node.geometry.isBufferGeometry
+                ? node.geometry
+                : new THREE.BufferGeometry().fromGeometry(node.geometry);
+              const material = node.material;
+              const instancedMesh = new THREE.InstancedMesh(
+                geometry,
+                material,
+                instances.length
+              );
+
+              instancedMesh.scale.set(scale, scale, scale);
+
+              for (let i = 0; i < instances.length; i++) {
+                const { position, rotation } = instances[i];
+                instancedMesh.setMatrixAt(
+                  i,
+                  new THREE.Matrix4()
+                    .makeRotationFromEuler(new THREE.Euler(...rotation))
+                    .setPosition(...position)
+                );
               }
-              scene.add(object);
-              addObjectToCheck(object, objectFile);
-            },
-            undefined,
-            (error) => console.error(`Failed to load object: ${error}`)
-          );
-        }
+
+              scene.add(instancedMesh);
+              addObjectToCheck(instancedMesh, objectFile);
+            }
+          });
+        });
       }
 
       function init() {
@@ -288,7 +367,7 @@
         );
 
         makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
-        makeWheats("./textures/wheat.glb", -25, 0, 10, 10);
+        makeWheats("./textures/wheat.glb", -100, -25, 10, 10);
         loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
         loadObject(
@@ -322,7 +401,7 @@
         }
         var cloudGroup = new THREE.Group();
         // Adjust the number of clouds as needed
-        const numClouds = 30;
+        const numClouds = 50;
 
         for (let i = 0; i < numClouds; i++) {
           const cloudFile = cloudFiles[i % cloudFiles.length];
