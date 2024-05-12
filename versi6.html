@@ -29,18 +29,18 @@
       var moveRight = false;
 
       var raycaster = new THREE.Raycaster();
-      var downRay = new THREE.Vector3(0, -1, 0);
+      var downRay = new THREE.Vector3(0, -0.1, 0);
       var previousPosition = new THREE.Vector3();
       var cameraOffset = new THREE.Vector3(-10, 5, 0);
 
       var clouds = [];
       var objects = [];
-      var harvesterMode = false;
+      var eagleEyeMode = false;
 
-      var harvester_position = { x: 10, y: 0.1, z: 10 };
+      var harversterState = false;
+      var harvester_position = { x: 10, y: 0.1, z: 40 };
       var harvesterPosition = new THREE.Vector3();
-      var harvesterBox;
-      var arrowHelper;
+      var harvesterRotation = new THREE.Euler(0, -Math.PI, 0);
 
       var sunAngle = 0;
       var maxSunAngle = Math.PI;
@@ -55,6 +55,16 @@
       var orbitRadius = 150;
       var dayNightCycle = 0;
 
+      var eagleEyeCameraPosition = new THREE.Vector3(
+        harvester_position.x,
+        harvester_position.y + 5,
+        harvester_position.z
+      );
+      var eagleEyeCameraLookAt = new THREE.Vector3(
+        harvester_position.x,
+        harvester_position.y,
+        harvester_position.z
+      );
       var firstPersonCameraPosition = new THREE.Vector3();
       var firstPersonCameraRotation = new THREE.Euler();
       var loader = new THREE.GLTFLoader();
@@ -62,13 +72,14 @@
       function switchToFirstPersonMode() {
         camera.position.copy(firstPersonCameraPosition);
         camera.rotation.copy(firstPersonCameraRotation);
-        controls.lock();
       }
 
-      function switchToharvesterMode() {
+      function switchToEagleEyeMode() {
         firstPersonCameraPosition.copy(camera.position);
         firstPersonCameraRotation.copy(camera.rotation);
-        controls.unlock();
+
+        camera.position.copy(eagleEyeCameraPosition);
+        camera.lookAt(eagleEyeCameraLookAt);
       }
 
       function addObjectToCheck(object, objectFile) {
@@ -97,9 +108,6 @@
               object.position.x += options.center.x;
               object.position.y += options.center.y;
               object.position.z += options.center.z;
-            }
-            if (typeof options.onLoad === "function") {
-              options.onLoad(object);
             }
           }
           scene.add(object);
@@ -180,47 +188,126 @@
           );
         }
       }
-
       async function makeWheats(objectFile, startX, startZ, w, h) {
         const width = w + 1;
         const height = h + 1;
-        const spacing = 2;
-        const positionsAndRotations = [];
+        const spacing = 6;
+        const wheatInstances = [];
 
         for (let i = 0; i < height; i++) {
           for (let j = 0; j < width; j++) {
-            positionsAndRotations.push({
+            wheatInstances.push({
               position: [startX + j * spacing, 0, startZ + i * spacing],
-              rotation: { x: 0, y: 90, z: 0 },
+              rotation: [0, Math.PI / 2, 0],
             });
           }
         }
+        createInstancedObjects(objectFile, wheatInstances, 0.25);
 
-        for (const { position, rotation } of positionsAndRotations) {
-          loader.load(
-            objectFile,
-            (gltf) => {
-              const object = gltf.scene;
-              object.position.set(...position);
-              object.scale.set(25, 25, 25);
-              object.traverse(function (node) {
-                if (node.isMesh) {
-                  node.receiveShadow = true;
-                  node.castShadow = true;
-                }
-              });
-              if (rotation) {
-                object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
-                object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
-                object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+        // for (let i = 0; i < height; i++) {
+        //   for (let j = 0; j < width; j++) {
+        //     positionsAndRotations.push({
+        //       position: [startX + j * spacing, 0, startZ + i * spacing],
+        //       rotation: { x: 0, y: 90, z: 0 },
+        //     });
+        //   }
+        // }
+
+        // for (const { position, rotation } of positionsAndRotations) {
+        //   loader.load(
+        //     objectFile,
+        //     (gltf) => {
+        //       const object = gltf.scene;
+        //       object.position.set(...position);
+        //       object.scale.set(25, 25, 25);
+        //       object.traverse(function (node) {
+        //         if (node.isMesh) {
+        //           node.receiveShadow = true;
+        //           node.castShadow = true;
+        //         }
+        //       });
+        //       if (rotation) {
+        //         object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
+        //         object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
+        //         object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+        //       }
+        //       scene.add(object);
+        //       addObjectToCheck(object, objectFile);
+        //     },
+        //     undefined,
+        //     (error) => console.error(`Failed to load object: ${error}`)
+        //   );
+        // }
+      }
+      // function createInstancedObjects(objectFile, instances, scale) {
+      //   loader.load(objectFile, (gltf) => {
+      //     const mesh = gltf.scene.children[0];
+      //     console.log(mesh)
+      //     console.log(mesh.children[0])
+      //     if (!mesh) {
+      //       console.error("Mesh is undefined");
+      //       return;
+      //     }
+      //     if (!mesh.geometry) {
+      //       console.error("Mesh geometry is undefined");
+      //       return;
+      //     }
+      //     const geometry = mesh.geometry.isBufferGeometry
+      //       ? mesh.geometry
+      //       : new THREE.BufferGeometry().fromGeometry(mesh.geometry);
+
+      //     const material = mesh.material;
+      //     const instancedMesh = new THREE.InstancedMesh(
+      //       geometry,
+      //       material,
+      //       instances.length
+      //     );
+
+      //     for (let i = 0; i < instances.length; i++) {
+      //       const { position, rotation } = instances[i];
+      //       instancedMesh.setMatrixAt(
+      //         i,
+      //         new THREE.Matrix4()
+      //           .makeRotationFromEuler(new THREE.Euler(...rotation))
+      //           .setPosition(...position)
+      //       );
+      //     }
+
+      //     instancedMesh.scale.set(scale, scale, scale);
+      //     scene.add(instancedMesh);
+      //   });
+      // }
+      function createInstancedObjects(objectFile, instances, scale) {
+        loader.load(objectFile, (gltf) => {
+          gltf.scene.traverse((node) => {
+            if (node.isMesh) {
+              const geometry = node.geometry.isBufferGeometry
+                ? node.geometry
+                : new THREE.BufferGeometry().fromGeometry(node.geometry);
+              const material = node.material;
+              const instancedMesh = new THREE.InstancedMesh(
+                geometry,
+                material,
+                instances.length
+              );
+
+              instancedMesh.scale.set(scale, scale, scale);
+
+              for (let i = 0; i < instances.length; i++) {
+                const { position, rotation } = instances[i];
+                instancedMesh.setMatrixAt(
+                  i,
+                  new THREE.Matrix4()
+                    .makeRotationFromEuler(new THREE.Euler(...rotation))
+                    .setPosition(...position)
+                );
               }
-              scene.add(object);
-              addObjectToCheck(object, objectFile);
-            },
-            undefined,
-            (error) => console.error(`Failed to load object: ${error}`)
-          );
-        }
+
+              scene.add(instancedMesh);
+              addObjectToCheck(instancedMesh, objectFile);
+            }
+          });
+        });
       }
 
       function init() {
@@ -280,7 +367,7 @@
         );
 
         makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
-        makeWheats("./textures/wheat.glb", -25, 0, 10, 10);
+        makeWheats("./textures/wheat.glb", -100, -25, 10, 10);
         loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
         loadObject(
@@ -288,14 +375,7 @@
           harvester_position.x,
           harvester_position.y,
           harvester_position.z,
-          1,
-          {
-            rotation: { x: 0, y: -90, z: 0 },
-            onLoad: function (harvester) {
-              harvesterBox = new THREE.BoxHelper(harvester, 0xffff00);
-              scene.add(harvesterBox);
-            },
-          }
+          1
         );
 
         var cloudFiles = [
@@ -321,7 +401,7 @@
         }
         var cloudGroup = new THREE.Group();
         // Adjust the number of clouds as needed
-        const numClouds = 30;
+        const numClouds = 50;
 
         for (let i = 0; i < numClouds; i++) {
           const cloudFile = cloudFiles[i % cloudFiles.length];
@@ -365,17 +445,28 @@
         };
 
         function enterHarvester() {
-          const harvester = objects.find((o) => o.sName.includes("harvester"));
-          const distance = camera.position.distanceTo(harvester.position);
-          if (harvesterMode == false && distance < 5) {
-            harvesterMode = true;
-            switchToharvesterMode();
-          } else if (harvesterMode == true) {
-            harvesterMode = false;
-            switchToFirstPersonMode();
-            camera.position.x = harvester.position.x + 2;
+          // calculate distance between harvester and the current camera/player
+          const harverster = objects.find((o) => o.sName.includes("harvester"));
+          const distance = camera.position.distanceTo(harverster.position);
+          if (harversterState == false && distance < 5) {
+            eagleEyeMode = true;
+            switchToEagleEyeMode();
+            harversterState = true;
+
+            camera.position.x = harverster.position.x + 10;
             camera.position.y = 5;
-            camera.position.z = harvester.position.z + 2;
+            camera.position.z = harverster.position.z;
+
+            camera.lookAt(harverster.position);
+            // harvesterPosition.copy(harvester.position);
+            // harvesterRotation.copy(harvester.rotation);
+          } else if (harversterState == true) {
+            eagleEyeMode = false;
+            switchToFirstPersonMode();
+            camera.position.x = harverster.position.x + 2;
+            camera.position.y = 5;
+            camera.position.z = harverster.position.z + 2;
+            harversterState = false;
           }
         }
         var onKeyDown = function (event) {
@@ -464,10 +555,6 @@
           previousPosition.copy(controls.getObject().position);
         }
       }
-      function updateHelpers() {
-        var harvester = objects.find((o) => o.sName.includes("harvester"));
-        harvesterBox.update();
-      }
 
       function animate() {
         requestAnimationFrame(animate);
@@ -478,7 +565,7 @@
         rotate(baling_baling_windmill, { x: 1, y: 0, z: 0 });
 
         if (sunAngle < maxSunAngle) {
-          sunAngle += 0.001;
+          sunAngle += 0.01;
         } else {
           sunAngle = 0;
           dayNightCycle = (dayNightCycle + 1) % 2;
@@ -555,7 +642,7 @@
         moveVector.y = 0;
         moveVector.normalize();
 
-        if (!harvesterMode) {
+        if (!eagleEyeMode) {
           raycaster.set(controls.getObject().position, downRay);
           var intersects = raycaster.intersectObjects(scene.children, true);
 
@@ -566,6 +653,7 @@
           }
         }
 
+        checkCollision();
         for (var i = 0; i < clouds.length; i++) {
           clouds[i].position.x -= 0.1;
 
@@ -575,47 +663,111 @@
             clouds[i].position.z = Math.random() * 500 - 200;
           }
         }
-
-        if (harvesterMode) {
-          var harvester = objects.find((o) => o.sName.includes("harvester"));
-          var harvesterSpeed = moveSpeed / 2;
-          var rotationSpeed = 0.01;
-          var harvester = objects.find((o) => o.sName.includes("harvester"));
+        if (harversterState) {
+          const harvester = objects.find((o) => o.sName.includes("harvester"));
           if (moveForward) {
-            harvester.position.add(
-              moveVector.clone().multiplyScalar(harvesterSpeed)
-            );
-            if (moveLeft) {
-              harvester.rotateY(rotationSpeed);
-            }
-            if (moveRight) {
-              harvester.rotateY(-rotationSpeed);
-            }
+            controls
+              .getObject()
+              .position.add(moveVector.clone().multiplyScalar(moveSpeed));
           }
           if (moveBackward) {
-            harvester.position.sub(
-              moveVector.clone().multiplyScalar(harvesterSpeed)
-            );
-            if (moveLeft) {
-              harvester.rotateY(-rotationSpeed);
-            }
-            if (moveRight) {
-              harvester.rotateY(rotationSpeed);
-            }
+            controls
+              .getObject()
+              .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
           }
+          if (moveLeft) {
+            controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(controls.getObject().up)
+                  .negate()
+                  .multiplyScalar(moveSpeed)
+              );
+          }
+          if (moveRight) {
+            controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(controls.getObject().up)
+                  .multiplyScalar(moveSpeed)
+              );
+          }
+          // moveVector.applyEuler(harvester.rotation)
+          harvester.position.x = camera.position.x - 10;
           harvester.position.y = 0;
-          var harvesterDirection = new THREE.Vector3();
-          harvester.getWorldDirection(harvesterDirection);
-          var cameraDistance = 10;
-          var cameraPosition = new THREE.Vector3()
-            .copy(harvester.position)
-            .sub(harvesterDirection.clone().multiplyScalar(cameraDistance));
-          cameraPosition.y = 8;
-          camera.position.copy(cameraPosition);
-          camera.lookAt(harvester.position);
-          updateHelpers();
+          harvester.position.z = camera.position.z;
+
+          // harvester.rotation.x = camera.rotation.x;
+          harvester.rotation.y = camera.rotation.y;
+          // harvester.rotation.z = camera.rotation.z;
+          // var moveSpeed = 0.2;
+          // var moveVector = new THREE.Vector3();
+          // const harvester = objects.find((o) => o.sName.includes("harvester"));
+          // if (moveForward) {
+          //   controls
+          //     .getObject()
+          //     .position.add(moveVector.clone().multiplyScalar(moveSpeed));
+          //   harvester.position.x = camera.position.x;
+          //   harvester.position.y = 0;
+          //   harvester.position.z = camera.position.z;
+          //   console.log("Moving forward");
+          // }
+          // if (moveBackward) {
+          //   console.log("Moving backward");
+          // }
+          // if (moveLeft) {
+          //   console.log("Moving left");
+          // }
+          // if (moveRight) {
+          //   console.log("Moving right");
+          // }
+          // if (moveForward) {
+          // moveVector.set(0, 0, -moveSpeed);
+          // moveVector.applyEuler(harvesterRotation);
+          // harvesterPosition.add(moveVector);
+          // }
+          // if (moveBackward) {
+          //   moveVector.set(0, 0, moveSpeed);
+          //   moveVector.applyEuler(harvesterRotation);
+          //   harvesterPosition.add(moveVector);
+          // }
+          // if (moveLeft) {
+          //   moveVector.set(-moveSpeed, 0, 0);
+          //   moveVector.applyEuler(harvesterRotation);
+          //   harvesterPosition.add(moveVector);
+          // }
+          // if (moveRight) {
+          //   moveVector.set(moveSpeed, 0, 0);
+          //   moveVector.applyEuler(harvesterRotation);
+          //   harvesterPosition.add(moveVector);
+          // }
+
+          // harvester.position.copy(harvesterPosition);
+          // var cameraOffset = new THREE.Vector3(-10, 5, 0);
+          // harvester.position.x = camera.position.x + 10;
+          // harvester.position.y = camera.position.y - 5;
+          // harvester.position.z = camera.position.z - 0;
+
+          // camera.position.x = harvester.position.x - 10;
+          // camera.position.y = harvester.position.y + 5;
+          // camera.position.z = harvester.position.z + 0;
+
+          // // harvester.rotation.copy(harvesterRotation);
+          // // harvester.rotation.x = 90;
+          // harvester.rotation.y = camera.rotation.y;
+          // harvester.rotation.z = 90;
+
+          // cameraOffset.applyEuler(harvesterRotation);
+          // const rotatedOffset = cameraOffset
+          //   .clone()
+          //   .applyEuler(harvester.rotation);
+          // camera.position.copy(harvesterPosition).add(rotatedOffset);
+          // camera.lookAt(harvesterPosition);
         } else {
-          checkCollision();
           if (moveForward)
             controls
               .getObject()
