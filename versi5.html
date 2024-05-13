@@ -365,6 +365,11 @@
         scene.background = new THREE.Color(0x87ceeb);
         scene.fog = new THREE.Fog(0x909090, 50, 150);
 
+        window.addEventListener("resize", () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
         camera = new THREE.PerspectiveCamera(
           50,
           window.innerWidth / window.innerHeight,
