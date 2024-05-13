@@ -28,19 +28,27 @@
       var moveLeft = false;
       var moveRight = false;
 
+      var isJumping = false;
+      var jumpStartTime;
+      var jumpDuration = 500;
+      var jumpHeight = 2;
+      var jumpStartY;
+
+      var currentTime, elapsedTime, progress, jumpHeightOffset;
+
       var raycaster = new THREE.Raycaster();
       var downRay = new THREE.Vector3(0, -1, 0);
       var previousPosition = new THREE.Vector3();
       var cameraOffset = new THREE.Vector3(-10, 5, 0);
 
       var clouds = [];
+      var wheats = [];
       var objects = [];
       var harvesterMode = false;
 
       var harvester_position = { x: 10, y: 0.1, z: 10 };
       var harvesterPosition = new THREE.Vector3();
       var harvesterBox;
-      var arrowHelper;
 
       var sunAngle = 0;
       var maxSunAngle = Math.PI;
@@ -215,7 +223,7 @@
                 object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
               }
               scene.add(object);
-              addObjectToCheck(object, objectFile);
+              wheats.push(object);
             },
             undefined,
             (error) => console.error(`Failed to load object: ${error}`)
@@ -395,6 +403,13 @@
             case 69: // E buat enter tractor/harverset
               enterHarvester();
               break;
+            case 32: // Tombol Space
+              if (!isJumping) {
+                isJumping = true;
+                jumpStartTime = Date.now();
+                jumpStartY = controls.getObject().position.y;
+              }
+              break;
           }
         };
 
@@ -423,6 +438,19 @@
         );
         window.addEventListener("keydown", onKeyDown, false);
         window.addEventListener("keyup", onKeyUp, false);
+      }
+
+      function wheatCollision() {
+        const harvester = objects.find((o) => o.sName.includes("harvester"));
+        const harvesterBoundingBox = new THREE.Box3().setFromObject(harvester);
+
+        wheats.forEach((wheat, index) => {
+          const wheatBoundingBox = new THREE.Box3().setFromObject(wheat);
+          if (harvesterBoundingBox.intersectsBox(wheatBoundingBox)) {
+            scene.remove(wheat);
+            wheats.splice(index, 1);
+          }
+        });
       }
 
       function checkCollision() {
@@ -468,7 +496,19 @@
         var harvester = objects.find((o) => o.sName.includes("harvester"));
         harvesterBox.update();
       }
-
+      function animateJump() {
+        currentTime = Date.now();
+        elapsedTime = currentTime - jumpStartTime;
+        if (elapsedTime < jumpDuration) {
+          progress = elapsedTime / jumpDuration;
+          jumpHeightOffset = jumpHeight * Math.sin(progress * Math.PI);
+          controls.getObject().position.y = jumpStartY + jumpHeightOffset;
+          requestAnimationFrame(animateJump);
+        } else {
+          controls.getObject().position.y = jumpStartY;
+          isJumping = false;
+        }
+      }
       function animate() {
         requestAnimationFrame(animate);
 
@@ -577,6 +617,7 @@
         }
 
         if (harvesterMode) {
+          wheatCollision();
           var harvester = objects.find((o) => o.sName.includes("harvester"));
           var harvesterSpeed = moveSpeed / 2;
           var rotationSpeed = 0.01;
@@ -616,6 +657,9 @@
           updateHelpers();
         } else {
           checkCollision();
+          if (isJumping) {
+            animateJump();
+          }
           if (moveForward)
             controls
               .getObject()
