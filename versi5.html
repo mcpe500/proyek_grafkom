@@ -48,7 +48,7 @@
 
       var harvester_position = { x: 10, y: 0.1, z: 10 };
       var harvesterPosition = new THREE.Vector3();
-      var harvesterBox;
+      let wheatDestroyed = 0;
 
       var sunAngle = 0;
       var maxSunAngle = Math.PI;
@@ -105,9 +105,6 @@
               object.position.x += options.center.x;
               object.position.y += options.center.y;
               object.position.z += options.center.z;
-            }
-            if (typeof options.onLoad === "function") {
-              options.onLoad(object);
             }
           }
           scene.add(object);
@@ -219,8 +216,7 @@
         }
 
         const objectTemplate = gltf.scene.clone(); // Clone the loaded object
-        // const wheatScale = 25;
-        const wheatScale = 0.75;
+        const wheatScale = 5;
         const promises = positionsAndRotations.map(({ position, rotation }) => {
           return new Promise((resolve, reject) => {
             const object = objectTemplate.clone(); // Clone the object for each wheat
@@ -307,22 +303,18 @@
         );
 
         makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
-        // makeWheats("./textures/wheat.glb", -25, 0, 10, 10);
         makeWheats("./textures/result/Wheat2.glb", -25, 0, 20, 20);
         loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
+
         loadObject(
           "./textures/result/harvester_noleh_kiri.glb",
-          harvester_position.x,
-          harvester_position.y,
-          harvester_position.z,
+          10,
+          0.1,
+          20,
           1,
           {
             rotation: { x: 0, y: -90, z: 0 },
-            onLoad: function (harvester) {
-              harvesterBox = new THREE.BoxHelper(harvester, 0xffff00);
-              scene.add(harvesterBox);
-            },
           }
         );
 
@@ -461,16 +453,36 @@
       }
 
       function wheatCollision() {
-        const harvester = objects.find((o) => o.sName.includes("harvester"));
-        const harvesterBoundingBox = new THREE.Box3().setFromObject(harvester);
-
+        var harvester = objects.find((o) => o.sName.includes("harvester"));
+        const harvesterPosition = harvester.position;
+        const harvesterRadius = 1.5;
         wheats.forEach((wheat, index) => {
-          const wheatBoundingBox = new THREE.Box3().setFromObject(wheat);
-          if (harvesterBoundingBox.intersectsBox(wheatBoundingBox)) {
+          const wheatPosition = wheat.position;
+          const distance = Math.sqrt(
+            Math.pow(wheatPosition.x - harvesterPosition.x, 2) +
+              Math.pow(wheatPosition.y - harvesterPosition.y, 2) +
+              Math.pow(wheatPosition.z - harvesterPosition.z, 2)
+          );
+          if (distance <= harvesterRadius) {
             scene.remove(wheat);
             wheats.splice(index, 1);
+            wheatDestroyed++;
           }
         });
+        if (wheatDestroyed >= 10) {
+          loadObject(
+            "./textures/hay_bale_free.glb",
+            harvester.position.x,
+            0.7,
+            harvester.position.z,
+            0.005,
+            {
+              rotation: { x: 90, y: 0, z: 0 },
+            }
+          );
+          wheatDestroyed = 0; // Reset the counter
+        }
+        console.log(wheatDestroyed);
       }
 
       function checkCollision() {
@@ -512,10 +524,7 @@
           previousPosition.copy(controls.getObject().position);
         }
       }
-      function updateHelpers() {
-        var harvester = objects.find((o) => o.sName.includes("harvester"));
-        harvesterBox.update();
-      }
+
       function animateJump() {
         currentTime = Date.now();
         elapsedTime = currentTime - jumpStartTime;
@@ -674,7 +683,6 @@
           cameraPosition.y = 8;
           camera.position.copy(cameraPosition);
           camera.lookAt(harvester.position);
-          updateHelpers();
         } else {
           checkCollision();
           if (isJumping) {
