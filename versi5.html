@@ -256,9 +256,6 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
-        window.addEventListener("resize", () => {
-          renderer.setSize(window.innerWidth, window.innerHeight);
-        });
         renderer.setSize(window.innerWidth, window.innerHeight);
 
         scene.add(hemisphereDay);
@@ -376,6 +373,11 @@
         scene.background = new THREE.Color(0x87ceeb);
         scene.fog = new THREE.Fog(0x909090, 50, 150);
 
+        window.addEventListener("resize", () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
         camera = new THREE.PerspectiveCamera(
           50,
           window.innerWidth / window.innerHeight,
