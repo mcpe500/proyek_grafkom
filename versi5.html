@@ -45,6 +45,12 @@
       var wheats = [];
       var objects = [];
       var harvesterMode = false;
+      var barnDoorMode = false;
+      var barnDoorOpenRotate = false;
+      var barnDoorCloseRotate = false;
+
+      var barnDoorOpenCoords = { x: 2, y: 0, z: 32 };
+      var barnDoorCloseCoords = { x: 2, y: 0, z: 27.4 };
 
       var harvester_position = { x: 10, y: 0.1, z: 10 };
       var harvesterPosition = new THREE.Vector3();
@@ -304,8 +310,15 @@
 
         makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
         makeWheats("./textures/result/Wheat2.glb", -25, 0, 20, 20);
-        loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
+        // loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
+        loadObject("./textures/result/Barn_House.glb", -10, 2.8, 30, 1, {
+          rotation: { x: 0, y: 180, z: 0 },
+        });
+        loadObject("./textures/result/Barn_Door_2.glb", 2, 0, 32.5, 1.1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
+        loadObject("./textures/original/low_poly_truck.glb", 27, 1, 15, 0.5, {
+          rotation: { x: 0, y: 270, z: 0 },
+        });
 
         loadObject(
           "./textures/result/harvester_noleh_kiri.glb",
@@ -403,6 +416,20 @@
             camera.position.z = harvester.position.z + 2;
           }
         }
+        function toggleBarnDoor() {
+          const door = objects.find((o) => o.sName.includes("Barn_Door"));
+          const distance = camera.position.distanceTo(door.position);
+          if (barnDoorMode == false && distance < 5) {
+            barnDoorMode = true;
+            barnDoorOpenRotate = true;
+            // console.log("d")
+            // door.rotation.set(0, -90, 0);
+          } else if (barnDoorMode == true) {
+            barnDoorMode = false;
+            barnDoorCloseRotate = true;
+            // door.rotation.set(0, 0, 0);
+          }
+        }
         var onKeyDown = function (event) {
           switch (event.keyCode) {
             case 87: // W
@@ -419,6 +446,7 @@
               break;
             case 69: // E buat enter tractor/harverset
               enterHarvester();
+              toggleBarnDoor();
               break;
             case 32: // Tombol Space
               if (!isJumping) {
@@ -545,7 +573,26 @@
       }
       function animate() {
         requestAnimationFrame(animate);
-
+        const door = objects.find((o) => o.sName.includes("Barn_Door"));
+        // console.log(door.rotation.y, barnDoorCloseRotate, barnDoorOpenRotate);
+        if (barnDoorOpenRotate) {
+          if (door.rotation.y < THREE.MathUtils.degToRad(-90)) {
+            barnDoorOpenRotate = false;
+            // door.rotation.y = 0;
+          }
+          if (door.rotation.y <= 0) {
+            rotate(door, { x: 0, y: -1, z: 0 });
+          }
+        }
+        if (barnDoorCloseRotate) {
+          if (door.rotation.y >= THREE.MathUtils.degToRad(0)) {
+            barnDoorCloseRotate = false;
+            door.rotation.y = 0;
+          }
+          if (door.rotation.y < 0) {
+            rotate(door, { x: 0, y: 1, z: 0 });
+          }
+        }
         var baling_baling_windmill = objects.find((o) =>
           o.sName.includes("baling_baling_windmill")
         );
@@ -649,13 +696,12 @@
             clouds[i].position.z = Math.random() * 500 - 200;
           }
         }
-
         if (harvesterMode) {
           wheatCollision();
           var harvester = objects.find((o) => o.sName.includes("harvester"));
           var harvesterSpeed = moveSpeed / 2;
           var rotationSpeed = 0.01;
-          var harvester = objects.find((o) => o.sName.includes("harvester"));
+          // var harvester = objects.find((o) => o.sName.includes("harvester"));
           if (moveForward) {
             harvester.position.add(
               moveVector.clone().multiplyScalar(harvesterSpeed)
