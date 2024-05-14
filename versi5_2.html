@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Render .glb with Three.js</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+      .hide-cursor {
+        cursor: none;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"></script>
+
+    <script>
+      var scene, renderer, controls, camera;
+      var moveForward = false;
+      var moveBackward = false;
+      var moveLeft = false;
+      var moveRight = false;
+
+      var isJumping = false;
+      var jumpStartTime;
+      var jumpDuration = 500;
+      var jumpHeight = 2;
+      var jumpStartY;
+
+      var currentTime, elapsedTime, progress, jumpHeightOffset;
+
+      var raycaster = new THREE.Raycaster();
+      var downRay = new THREE.Vector3(0, -1, 0);
+      var previousPosition = new THREE.Vector3();
+      var cameraOffset = new THREE.Vector3(-10, 5, 0);
+
+      var clouds = [];
+      var wheats = [];
+      var objects = [];
+      var harvesterMode = false;
+      var barnDoorMode = false;
+      var barnDoorOpenRotate = false;
+      var barnDoorCloseRotate = false;
+
+      var barnDoorOpenCoords = { x: 2, y: 0, z: 32 };
+      var barnDoorCloseCoords = { x: 2, y: 0, z: 27.4 };
+
+      var harvester_position = { x: 10, y: 0.1, z: 10 };
+      var harvesterPosition = new THREE.Vector3();
+      var previousHarvesterPosition = new THREE.Vector3();
+      let wheatDestroyed = 0;
+
+      var sunAngle = 0;
+      var maxSunAngle = Math.PI;
+      var sunLightColor = 0xffffcc;
+      var moonLightColor = 0xeeeeee;
+      var sunLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      var moonLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      var hemisphereDay = new THREE.HemisphereLight(0xffffff, 0.5);
+
+      var textureLoader = new THREE.TextureLoader();
+      var lensflare = new THREE.Lensflare();
+      var textureFlare0 = textureLoader.load(
+        "https://threejs.org/examples/textures/lensflare/lensflare0.png"
+      );
+      var textureFlare3 = textureLoader.load(
+        "https://threejs.org/examples/textures/lensflare/lensflare3.png"
+      );
+      lensflare.addElement(new THREE.LensflareElement(textureFlare0, 700, 0));
+      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 60, 0.6));
+      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 70, 0.7));
+      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 120, 0.9));
+      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 70, 1));
+
+      var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      var shadowSize = 150;
+      var orbitRadius = 150;
+      var dayNightCycle = 0;
+
+      var firstPersonCameraPosition = new THREE.Vector3();
+      var firstPersonCameraRotation = new THREE.Euler();
+      var loader = new THREE.GLTFLoader();
+
+      function switchToFirstPersonMode() {
+        camera.position.copy(firstPersonCameraPosition);
+        camera.rotation.copy(firstPersonCameraRotation);
+        controls.lock();
+      }
+
+      function switchToharvesterMode() {
+        firstPersonCameraPosition.copy(camera.position);
+        firstPersonCameraRotation.copy(camera.rotation);
+        controls.unlock();
+      }
+
+      function addObjectToCheck(object, objectFile) {
+        objects.push(object);
+        objects[objects.length - 1].sName = objectFile;
+      }
+
+      function loadObject(objectFile, x, y, z, scale, options = {}) {
+        loader.load(objectFile, function (gltf) {
+          var object = gltf.scene;
+          object.position.set(x, y, z);
+          object.scale.set(scale, scale, scale);
+          object.traverse(function (node) {
+            if (node.isMesh) {
+              node.receiveShadow = true;
+              node.castShadow = true;
+            }
+          });
+          if (options) {
+            if (options.rotation) {
+              object.rotation.x = THREE.MathUtils.degToRad(options.rotation.x);
+              object.rotation.y = THREE.MathUtils.degToRad(options.rotation.y);
+              object.rotation.z = THREE.MathUtils.degToRad(options.rotation.z);
+            }
+            if (options.center) {
+              object.position.x += options.center.x;
+              object.position.y += options.center.y;
+              object.position.z += options.center.z;
+            }
+          }
+          scene.add(object);
+          addObjectToCheck(object, objectFile);
+        });
+      }
+
+      function rotate(object, { x = 0, y = 0, z = 0 } = {}) {
+        if (object === undefined) return;
+        const { degToRad } = THREE.MathUtils;
+        object.rotation.x += degToRad(x);
+        object.rotation.y += degToRad(y);
+        object.rotation.z += degToRad(z);
+      }
+
+      async function makeWalls(objectFile, startX, startZ, w, h) {
+        const width = w + 1;
+        const height = h + 1;
+        const spacing = 5 * 0.975;
+        const positionsAndRotations = [];
+        // Load the GLB file once outside the loop
+        let gltf;
+        try {
+          gltf = await loader.loadAsync(objectFile);
+        } catch (error) {
+          console.error(`Failed to load object: ${error}`);
+          return; // Exit function if loading fails
+        }
+        const objectTemplate = gltf.scene.clone(); // Clone the loaded object
+
+        for (let i = 2; i < width; i++) {
+          positionsAndRotations.push({
+            position: [startX + i * spacing, 0.75, startZ],
+            rotation: { x: 0, y: 90, z: 0 },
+          });
+        }
+        for (let i = 0; i < width - 1; i++) {
+          positionsAndRotations.push({
+            position: [
+              startX + i * spacing,
+              0.75,
+              startZ + (height - 1) * spacing,
+            ],
+            rotation: { x: 0, y: 270, z: 0 },
+          });
+        }
+        for (let i = 1; i < height - 1; i++) {
+          positionsAndRotations.push({
+            position: [startX, 0.75, startZ + i * spacing],
+            rotation: { x: 0, y: 180, z: 0 },
+          });
+        }
+        for (let i = 1; i < height; i++) {
+          positionsAndRotations.push({
+            position: [
+              startX + (width - 1) * spacing,
+              0.75,
+              startZ + i * spacing,
+            ],
+            rotation: { x: 0, y: 0, z: 0 },
+          });
+        }
+        const listOfWalls = [];
+        for (const { position, rotation } of positionsAndRotations) {
+          const object = objectTemplate.clone(); // Clone the object for each wall
+          object.position.set(...position);
+          object.scale.set(1, 1, 1);
+          object.traverse(function (node) {
+            if (node.isMesh) {
+              node.receiveShadow = true;
+              node.castShadow = true;
+            }
+          });
+          if (rotation) {
+            object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
+            object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
+            object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+          }
+          listOfWalls.push(object);
+        }
+        listOfWalls.forEach((low) => {
+          scene.add(low);
+          addObjectToCheck(low, objectFile);
+        });
+      }
+
+      async function makeWheats(objectFile, startX, startZ, w, h) {
+        const width = w + 1;
+        const height = h + 1;
+        const spacing = 1;
+        const positionsAndRotations = [];
+
+        for (let i = 0; i < height; i++) {
+          for (let j = 0; j < width; j++) {
+            positionsAndRotations.push({
+              position: [startX + j * spacing, 0, startZ + i * spacing],
+              rotation: { x: 0, y: 90, z: 0 },
+            });
+          }
+        }
+
+        // Load the GLB file once
+        let gltf;
+        try {
+          gltf = await loader.loadAsync(objectFile);
+        } catch (error) {
+          console.error(`Failed to load object: ${error}`);
+          return;
+        }
+
+        const objectTemplate = gltf.scene.clone(); // Clone the loaded object
+        const wheatScale = 5;
+        const promises = positionsAndRotations.map(({ position, rotation }) => {
+          return new Promise((resolve, reject) => {
+            const object = objectTemplate.clone(); // Clone the object for each wheat
+            object.position.set(...position);
+            object.scale.set(wheatScale, wheatScale, wheatScale);
+            object.traverse(function (node) {
+              if (node.isMesh) {
+                node.receiveShadow = true;
+                node.castShadow = true;
+              }
+            });
+            if (rotation) {
+              object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
+              object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
+              object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+            }
+            scene.add(object);
+            wheats.push(object);
+            resolve(object); // Resolve the promise after setting up the object
+          });
+        });
+
+        try {
+          await Promise.all(promises); // Wait for all objects to finish setting up
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      function init() {
+        scene = new THREE.Scene();
+        renderer = new THREE.WebGLRenderer();
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        scene.add(hemisphereDay);
+
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.top += shadowSize;
+        sunLight.shadow.camera.bottom -= shadowSize;
+        sunLight.shadow.camera.left -= shadowSize;
+        sunLight.shadow.camera.right += shadowSize;
+        sunLight.add(lensflare);
+        scene.add(sunLight);
+        scene.add(new THREE.CameraHelper(sunLight.shadow.camera));
+
+        moonLight.castShadow = true;
+        moonLight.shadow.mapSize.width = 2048;
+        moonLight.shadow.mapSize.height = 2048;
+        moonLight.shadow.camera.top += shadowSize;
+        moonLight.shadow.camera.bottom -= shadowSize;
+        moonLight.shadow.camera.left -= shadowSize;
+        moonLight.shadow.camera.right += shadowSize;
+        scene.add(moonLight);
+        scene.add(new THREE.CameraHelper(moonLight.shadow.camera));
+
+        const windmill_location = { x: 20, y: 0, z: 10 };
+        loadObject(
+          "./textures/result/kaki_windmill.glb",
+          windmill_location.x,
+          windmill_location.y,
+          windmill_location.z,
+          0.05,
+          {
+            rotation: { x: 90, y: 0, z: 0 },
+          }
+        );
+        loadObject(
+          "./textures/result/baling_baling_windmill.glb",
+          windmill_location.x + 1.2,
+          windmill_location.y + 28.5,
+          windmill_location.z * 1,
+          0.05,
+          {
+            center: {
+              x: 0,
+              y: 0,
+              z: 0,
+            },
+          }
+        );
+
+        makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
+        makeWheats("./textures/result/Wheat2.glb", -25, 0, 20, 20);
+        // loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
+        loadObject("./textures/result/newBarn_Home.glb", -10, 2.8, 30, 1);
+        // loadObject("./textures/result/newBarn_Home.glb", -10, 2.8, 30, 1, {
+        //   rotation: { x: 0, y: 270, z: 0 },
+        // });
+        loadObject("./textures/result/Barn_Door_2.glb", 2, 0, 32.5, 1.1);
+        // loadObject("./textures/result/Barn_House.glb", -10, 2.8, 30, 1, {
+        //   rotation: { x: 0, y: 180, z: 0 },
+        // });
+        // loadObject("./textures/result/Barn_Door_2.glb", 2, 0, 32.5, 1.1);
+        loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
+        loadObject("./textures/moon1.glb", 10, 0, 10, 1);
+        loadObject("./textures/original/low_poly_truck.glb", 27, 1, 15, 0.5, {
+          rotation: { x: 0, y: 270, z: 0 },
+        });
+
+        loadObject(
+          "./textures/result/harvester_noleh_kiri.glb",
+          10,
+          0.1,
+          20,
+          1,
+          {
+            rotation: { x: 0, y: -90, z: 0 },
+          }
+        );
+
+        var cloudFiles = [
+          "./textures/cloud_1.glb",
+          "./textures/cloud_2.glb",
+          "./textures/cloud_3.glb",
+          "./textures/cloud_4.glb",
+        ];
+        function loadCloud(cloudFile, x, y, z) {
+          loader.load(cloudFile, function (gltf) {
+            var cloud = gltf.scene;
+            cloud.receiveShadow = false;
+            cloud.position.set(x, y, z);
+            cloud.scale.set(5, 5, 5);
+            cloud.traverse(function (node) {
+              if (node.isMesh) {
+                node.castShadow = true;
+              }
+            });
+            scene.add(cloud);
+            clouds.push(cloud);
+          });
+        }
+        var cloudGroup = new THREE.Group();
+        // Adjust the number of clouds as needed
+        const numClouds = 30;
+
+        for (let i = 0; i < numClouds; i++) {
+          const cloudFile = cloudFiles[i % cloudFiles.length];
+          const x = Math.random() * 500 - 200;
+          const y = Math.random() * 20 + 30;
+          const z = Math.random() * 500 - 200;
+          loadCloud(cloudFile, x, y, z);
+        }
+
+        scene.add(cloudGroup);
+        cloudGroup.add(ambientLight);
+
+        var floorGeometry = new THREE.PlaneGeometry(250, 250);
+        var floorMaterial = new THREE.MeshStandardMaterial({ color: 0x527e1c });
+        var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.receiveShadow = true;
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(0, 0, 0);
+        scene.add(floor);
+
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.Fog(0x909090, 10, 200);
+
+        window.addEventListener("resize", () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        camera = new THREE.PerspectiveCamera(
+          50,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.y = 20;
+
+        controls = new THREE.PointerLockControls(camera, document.body);
+        scene.add(controls.getObject());
+
+        var onMouseDown = function (event) {
+          controls.lock();
+        };
+
+        var onPointerLockChange = function () {
+          controls.enabled = document.pointerLockElement === document.body;
+        };
+
+        function enterHarvester() {
+          const harvester = objects.find((o) => o.sName.includes("harvester"));
+          const distance = camera.position.distanceTo(harvester.position);
+          if (harvesterMode == false && distance < 5) {
+            harvesterMode = true;
+            switchToharvesterMode();
+          } else if (harvesterMode == true) {
+            harvesterMode = false;
+            switchToFirstPersonMode();
+            camera.position.x = harvester.position.x + 2;
+            camera.position.y = 5;
+            camera.position.z = harvester.position.z + 2;
+          }
+        }
+        function toggleBarnDoor() {
+          const door = objects.find((o) => o.sName.includes("Barn_Door"));
+          const distance = camera.position.distanceTo(door.position);
+          if (barnDoorMode == false && distance < 5) {
+            barnDoorMode = true;
+            barnDoorOpenRotate = true;
+            // console.log("d")
+            // door.rotation.set(0, -90, 0);
+          } else if (barnDoorMode == true) {
+            barnDoorMode = false;
+            barnDoorCloseRotate = true;
+            // door.rotation.set(0, 0, 0);
+          }
+        }
+        var onKeyDown = function (event) {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = true;
+              break;
+            case 65: // A
+              moveLeft = true;
+              break;
+            case 83: // S
+              moveBackward = true;
+              break;
+            case 68: // D
+              moveRight = true;
+              break;
+            case 69: // E buat enter tractor/harverset
+              enterHarvester();
+              toggleBarnDoor();
+              break;
+            case 32: // Tombol Space
+              if (!isJumping) {
+                isJumping = true;
+                jumpStartTime = Date.now();
+                jumpStartY = controls.getObject().position.y;
+              }
+              break;
+          }
+        };
+
+        var onKeyUp = function (event) {
+          switch (event.keyCode) {
+            case 87: // W
+              moveForward = false;
+              break;
+            case 65: // A
+              moveLeft = false;
+              break;
+            case 83: // S
+              moveBackward = false;
+              break;
+            case 68: // D
+              moveRight = false;
+              break;
+          }
+        };
+
+        window.addEventListener("mousedown", onMouseDown, false);
+        document.addEventListener(
+          "pointerlockchange",
+          onPointerLockChange,
+          false
+        );
+        window.addEventListener("keydown", onKeyDown, false);
+        window.addEventListener("keyup", onKeyUp, false);
+      }
+
+      function wheatCollision() {
+        var harvester = objects.find((o) => o.sName.includes("harvester"));
+        const harvesterPosition = harvester.position;
+        const harvesterRadius = 1.5;
+        wheats.forEach((wheat, index) => {
+          const wheatPosition = wheat.position;
+          const distance = Math.sqrt(
+            Math.pow(wheatPosition.x - harvesterPosition.x, 2) +
+              Math.pow(wheatPosition.y - harvesterPosition.y, 2) +
+              Math.pow(wheatPosition.z - harvesterPosition.z, 2)
+          );
+          if (distance <= harvesterRadius) {
+            scene.remove(wheat);
+            wheats.splice(index, 1);
+            wheatDestroyed++;
+          }
+        });
+        if (wheatDestroyed >= 20) {
+          loadObject(
+            "./textures/hay_bale_free.glb",
+            harvester.position.x,
+            0.7,
+            harvester.position.z,
+            0.005,
+            {
+              rotation: { x: 90, y: 0, z: 0 },
+            }
+          );
+          wheatDestroyed = 0; // Reset the counter
+        }
+        console.log(wheatDestroyed);
+      }
+
+      function checkCollision() {
+        var raycasters = [];
+        raycasters.push(
+          new THREE.Raycaster(
+            controls.getObject().position,
+            new THREE.Vector3(0, 0, -1)
+          )
+        );
+        raycasters.push(
+          new THREE.Raycaster(
+            controls.getObject().position,
+            new THREE.Vector3(0, 0, 1)
+          )
+        );
+        raycasters.push(
+          new THREE.Raycaster(
+            controls.getObject().position,
+            new THREE.Vector3(-1, 0, 0)
+          )
+        );
+        raycasters.push(
+          new THREE.Raycaster(
+            controls.getObject().position,
+            new THREE.Vector3(1, 0, 0)
+          )
+        );
+        var intersected = false;
+        raycasters.forEach(function (raycaster) {
+          var intersects = raycaster.intersectObjects(objects, true);
+          if (intersects.length > 0 && intersects[0].distance < 1) {
+            intersected = true;
+          }
+        });
+        if (intersected) {
+          controls.getObject().position.copy(previousPosition);
+        } else {
+          previousPosition.copy(controls.getObject().position);
+        }
+      }
+
+      function updateHarvesterBox() {
+        var harvester = objects.find((o) => o.sName.includes("harvester"));
+
+        var harvesterBox = new THREE.Box3().setFromObject(harvester);
+        var previousHarvesterPosition = new THREE.Vector3();
+        previousHarvesterPosition.copy(harvester.position);
+        var box = new THREE.Box3().setFromObject(harvester);
+        var center = new THREE.Vector3();
+        var size = new THREE.Vector3();
+
+        box.getCenter(center);
+        box.getSize(size);
+
+        var matrix = new THREE.Matrix4();
+        matrix.compose(
+          center,
+          harvester.quaternion,
+          new THREE.Vector3(1, 1, 1)
+        );
+
+        harvesterBox.setFromCenterAndSize(center, size);
+        harvesterBox.applyMatrix4(matrix);
+      }
+      function harvesterCollision() {
+        var harvester = objects.find((o) => o.sName.includes("harvester"));
+        var intersected = false;
+        var harvesterBox = new THREE.Box3().setFromObject(harvester);
+        var previousHarvesterPosition = new THREE.Vector3();
+        previousHarvesterPosition.copy(harvester.position);
+
+        // Update bounding box harvester
+        updateHarvesterBox();
+
+        // Periksa tabrakan dengan semua objek lain
+        objects.forEach(function (object) {
+          var objectBox = new THREE.Box3().setFromObject(object);
+
+          if (harvesterBox.intersectsBox(objectBox)) {
+            intersected = true;
+          }
+        });
+
+        if (intersected) {
+          harvester.position.copy(previousHarvesterPosition);
+        } else {
+          previousHarvesterPosition.copy(harvester.position);
+        }
+      }
+
+      function animateJump() {
+        currentTime = Date.now();
+        elapsedTime = currentTime - jumpStartTime;
+        if (elapsedTime < jumpDuration) {
+          progress = elapsedTime / jumpDuration;
+          jumpHeightOffset = jumpHeight * Math.sin(progress * Math.PI);
+          controls.getObject().position.y = jumpStartY + jumpHeightOffset;
+          requestAnimationFrame(animateJump);
+        } else {
+          controls.getObject().position.y = jumpStartY;
+          isJumping = false;
+        }
+      }
+      function animate() {
+        requestAnimationFrame(animate);
+        const door = objects.find((o) => o.sName.includes("Barn_Door"));
+        // console.log(door.rotation.y, barnDoorCloseRotate, barnDoorOpenRotate);
+        if (barnDoorOpenRotate) {
+          if (door.rotation.y < THREE.MathUtils.degToRad(-90)) {
+            barnDoorOpenRotate = false;
+            // door.rotation.y = 0;
+          }
+          if (door.rotation.y <= 0) {
+            rotate(door, { x: 0, y: -1, z: 0 });
+          }
+        }
+        if (barnDoorCloseRotate) {
+          if (door.rotation.y >= THREE.MathUtils.degToRad(0)) {
+            barnDoorCloseRotate = false;
+            door.rotation.y = 0;
+          }
+          if (door.rotation.y < 0) {
+            rotate(door, { x: 0, y: 1, z: 0 });
+          }
+        }
+        var baling_baling_windmill = objects.find((o) =>
+          o.sName.includes("baling_baling_windmill")
+        );
+        rotate(baling_baling_windmill, { x: 1, y: 0, z: 0 });
+
+        if (sunAngle < maxSunAngle) {
+          sunAngle += 0.001;
+        } else {
+          sunAngle = 0;
+          dayNightCycle = (dayNightCycle + 1) % 2;
+        }
+
+        sunLight.position.x = Math.cos(sunAngle) * orbitRadius;
+        sunLight.position.y = Math.sin(sunAngle) * orbitRadius;
+        sunLight.position.z = 0;
+
+        lensflare.position.x = Math.cos(sunAngle) * (orbitRadius - 150);
+        lensflare.position.y = Math.sin(sunAngle) * (orbitRadius - 150);
+        lensflare.position.z = 0;
+
+        var moon = objects.find((o) => o.sName.includes("moon"));
+        if (moon) {
+          // moon.position.copy(sunLight.position);
+        } else {
+          console.error(
+            "Objek 'moon' tidak ditemukan dalam array 'objects'. Pastikan objek sudah dimuat dan nama objek sudah sesuai."
+          );
+        }
+
+        hemisphereDay.position.x = Math.cos(sunAngle) * orbitRadius;
+        hemisphereDay.position.y = Math.sin(sunAngle) * orbitRadius;
+        hemisphereDay.position.z = 0;
+
+        moonLight.position.x = Math.cos(sunAngle) * orbitRadius;
+        moonLight.position.y = Math.sin(sunAngle) * orbitRadius;
+        moonLight.position.z = 0;
+
+        var skyColor;
+        var sunriseColor = new THREE.Color(0.8, 0.6, 0.2);
+        var morningColor = new THREE.Color(0.2, 0.6, 0.8);
+        var noonColor = new THREE.Color(0.4, 0.8, 1.0);
+        var eveningColor = new THREE.Color(0.8, 0.4, 0.2);
+        var sunsetColor = new THREE.Color(0.6, 0.3, 0.1);
+        var nightColor = new THREE.Color(0.05, 0.05, 0.2);
+
+        var transitionProgress = sunAngle / maxSunAngle;
+        if (dayNightCycle === 0) {
+          lensflare.visible = true;
+          if (transitionProgress < 0.25) {
+            skyColor = sunriseColor.lerp(
+              morningColor,
+              transitionProgress / 0.25
+            );
+            sunLight.intensity = (transitionProgress / 0.25) * 0.5;
+            moonLight.intensity = 0.5 - (transitionProgress / 0.25) * 0.5;
+            hemisphereDay.intensity = (transitionProgress / 0.25) * 0.5;
+          } else if (transitionProgress < 0.5) {
+            skyColor = morningColor.lerp(
+              noonColor,
+              (transitionProgress - 0.25) / 0.25
+            );
+          } else if (transitionProgress < 0.75) {
+            skyColor = noonColor.lerp(
+              eveningColor,
+              (transitionProgress - 0.5) / 0.25
+            );
+          } else {
+            skyColor = eveningColor.lerp(
+              sunsetColor,
+              (transitionProgress - 0.75) / 0.25
+            );
+            moonLight.intensity = ((transitionProgress - 0.75) / 0.25) * 0.25;
+            hemisphereDay.intensity =
+              0.5 - ((transitionProgress - 0.75) / 0.25) * 0.5;
+          }
+        } else {
+          lensflare.visible = false;
+          if (transitionProgress < 0.1) {
+            skyColor = sunsetColor.lerp(nightColor, transitionProgress / 0.1);
+            moonLight.intensity = (transitionProgress / 0.1) * 0.25;
+            sunLight.intensity = 0.5 - (transitionProgress / 0.1) * 0.5;
+          } else if (transitionProgress < 0.9) {
+            skyColor = nightColor;
+          } else {
+            skyColor = nightColor.lerp(
+              sunriseColor,
+              (transitionProgress - 0.9) / 0.1
+            );
+          }
+        }
+        scene.background = skyColor;
+
+        var moveSpeed = 0.2;
+        var moveVector = new THREE.Vector3();
+        controls.getObject().getWorldDirection(moveVector);
+        moveVector.y = 0;
+        moveVector.normalize();
+
+        if (!harvesterMode) {
+          raycaster.set(controls.getObject().position, downRay);
+          var intersects = raycaster.intersectObjects(scene.children, true);
+
+          if (intersects.length > 0) {
+            if (intersects[0].distance - 1.5 > 0) {
+              controls.getObject().position.y -= 0.6;
+            }
+          }
+        }
+
+        for (var i = 0; i < clouds.length; i++) {
+          clouds[i].position.x -= 0.1;
+
+          if (clouds[i].position.x < -300) {
+            clouds[i].position.x = 300;
+            clouds[i].position.y = Math.random() * 20 + 30;
+            clouds[i].position.z = Math.random() * 500 - 200;
+          }
+        }
+        if (harvesterMode) {
+          wheatCollision();
+          harvesterCollision();
+          var harvester = objects.find((o) => o.sName.includes("harvester"));
+          var harvesterSpeed = moveSpeed / 2;
+          var rotationSpeed = 0.01;
+          if (moveForward) {
+            harvester.position.add(
+              moveVector.clone().multiplyScalar(harvesterSpeed)
+            );
+            if (moveLeft) {
+              harvester.rotateY(rotationSpeed);
+            }
+            if (moveRight) {
+              harvester.rotateY(-rotationSpeed);
+            }
+          }
+          if (moveBackward) {
+            harvester.position.sub(
+              moveVector.clone().multiplyScalar(harvesterSpeed)
+            );
+            if (moveLeft) {
+              harvester.rotateY(-rotationSpeed);
+            }
+            if (moveRight) {
+              harvester.rotateY(rotationSpeed);
+            }
+          }
+          harvester.position.y = 0;
+          var harvesterDirection = new THREE.Vector3();
+          harvester.getWorldDirection(harvesterDirection);
+          var cameraDistance = 10;
+          var cameraPosition = new THREE.Vector3()
+            .copy(harvester.position)
+            .sub(harvesterDirection.clone().multiplyScalar(cameraDistance));
+          cameraPosition.y = 8;
+          camera.position.copy(cameraPosition);
+          camera.lookAt(harvester.position);
+        } else {
+          checkCollision();
+          if (isJumping) {
+            animateJump();
+          }
+          if (moveForward)
+            controls
+              .getObject()
+              .position.add(moveVector.clone().multiplyScalar(moveSpeed));
+          if (moveBackward)
+            controls
+              .getObject()
+              .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
+          if (moveLeft)
+            controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(controls.getObject().up)
+                  .negate()
+                  .multiplyScalar(moveSpeed)
+              );
+          if (moveRight)
+            controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(controls.getObject().up)
+                  .multiplyScalar(moveSpeed)
+              );
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      init();
+      animate();
+    </script>
+  </body>
+</html>

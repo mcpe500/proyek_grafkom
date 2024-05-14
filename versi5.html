@@ -21,6 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"></script>
     <script>
       var scene, renderer, controls, camera;
       var moveForward = false;
@@ -45,6 +46,7 @@
       var wheats = [];
       var objects = [];
       var harvesterMode = false;
+      var truckMode = false;
       var barnDoorMode = false;
       var barnDoorOpenRotate = false;
       var barnDoorCloseRotate = false;
@@ -64,6 +66,20 @@
       var moonLight = new THREE.DirectionalLight(0xffffff, 0.5);
       var hemisphereDay = new THREE.HemisphereLight(0xffffff, 0.5);
 
+      var textureLoader = new THREE.TextureLoader();
+      var lensflare = new THREE.Lensflare();
+      var textureFlare0 = textureLoader.load(
+        "https://threejs.org/examples/textures/lensflare/lensflare0.png"
+      );
+      var textureFlare3 = textureLoader.load(
+        "https://threejs.org/examples/textures/lensflare/lensflare3.png"
+      );
+      lensflare.addElement(new THREE.LensflareElement(textureFlare0, 700, 0));
+      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 60, 0.6));
+      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 70, 0.7));
+      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 120, 0.9));
+      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 70, 1));
+
       var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
       var shadowSize = 150;
       var orbitRadius = 150;
@@ -73,6 +89,8 @@
       var firstPersonCameraRotation = new THREE.Euler();
       var loader = new THREE.GLTFLoader();
 
+      var interactibleObject;
+
       function switchToFirstPersonMode() {
         camera.position.copy(firstPersonCameraPosition);
         camera.rotation.copy(firstPersonCameraRotation);
@@ -80,6 +98,12 @@
       }
 
       function switchToharvesterMode() {
+        firstPersonCameraPosition.copy(camera.position);
+        firstPersonCameraRotation.copy(camera.rotation);
+        controls.unlock();
+      }
+
+      function switchTotruckMode() {
         firstPersonCameraPosition.copy(camera.position);
         firstPersonCameraRotation.copy(camera.rotation);
         controls.unlock();
@@ -269,6 +293,7 @@
         sunLight.shadow.camera.bottom -= shadowSize;
         sunLight.shadow.camera.left -= shadowSize;
         sunLight.shadow.camera.right += shadowSize;
+        sunLight.add(lensflare);
         scene.add(sunLight);
         scene.add(new THREE.CameraHelper(sunLight.shadow.camera));
 
@@ -326,7 +351,7 @@
         });
         // loadObject("./textures/result/Barn_Door_2.glb", 2, 0, 32.5, 1.1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
-        loadObject("./textures/original/low_poly_truck.glb", 27, 1, 15, 0.5, {
+        loadObject("./textures/original/low_poly_truck.glb", 30, 1, 35, 0.5, {
           rotation: { x: 0, y: 270, z: 0 },
         });
 
@@ -404,6 +429,7 @@
         controls = new THREE.PointerLockControls(camera, document.body);
         scene.add(controls.getObject());
 
+        interactibleObject = camera;
         var onMouseDown = function (event) {
           controls.lock();
         };
@@ -414,11 +440,15 @@
 
         function enterHarvester() {
           const harvester = objects.find((o) => o.sName.includes("harvester"));
-          const distance = camera.position.distanceTo(harvester.position);
+          const distance = interactibleObject.position.distanceTo(
+            harvester.position
+          );
           if (harvesterMode == false && distance < 5) {
+            interactibleObject = harvester;
             harvesterMode = true;
             switchToharvesterMode();
           } else if (harvesterMode == true) {
+            interactibleObject = camera;
             harvesterMode = false;
             switchToFirstPersonMode();
             camera.position.x = harvester.position.x + 2;
@@ -426,12 +456,30 @@
             camera.position.z = harvester.position.z + 2;
           }
         }
+        function enterTruck() {
+          const truck = objects.find((o) => o.sName.includes("low_poly_truck"));
+          const distance = interactibleObject.position.distanceTo(
+            truck.position
+          );
+          if (truckMode == false && distance < 5) {
+            interactibleObject = truck;
+            truckMode = true;
+            switchTotruckMode();
+          } else if (truckMode == true) {
+            interactibleObject = camera;
+            truckMode = false;
+            switchToFirstPersonMode();
+            camera.position.x = truck.position.x + 2;
+            camera.position.y = 5;
+            camera.position.z = truck.position.z + 2;
+          }
+        }
         function toggleBarnDoor() {
           const doorKiri = objects.find((o) => o.sName.includes("BarnKiri"));
           const doorKanan = objects.find((o) => o.sName.includes("BarnKanan"));
           const distance =
-            (camera.position.distanceTo(doorKiri.position) +
-              camera.position.distanceTo(doorKanan.position)) /
+            (interactibleObject.position.distanceTo(doorKiri.position) +
+              interactibleObject.position.distanceTo(doorKanan.position)) /
             2;
           if (
             barnDoorMode == false &&
@@ -440,9 +488,6 @@
           ) {
             barnDoorMode = true;
             barnDoorOpenRotate = true;
-
-            // doorKiri.rotation.set(0, THREE.MathUtils.degToRad(0), 0);
-            // doorKanan.rotation.set(0, THREE.MathUtils.degToRad(90), 0);
           } else if (
             barnDoorMode == true &&
             distance < 10 &&
@@ -450,8 +495,6 @@
           ) {
             barnDoorMode = false;
             barnDoorCloseRotate = true;
-            // doorKiri.rotation.set(0, THREE.MathUtils.degToRad(-90), 0);
-            // doorKanan.rotation.set(0, THREE.MathUtils.degToRad(180), 0);
           }
         }
         var onKeyDown = function (event) {
@@ -469,7 +512,14 @@
               moveRight = true;
               break;
             case 69: // E buat enter tractor/harverset
-              enterHarvester();
+              if (truckMode == false) {
+                enterHarvester();
+              }
+              if (harvesterMode == false) {
+                enterTruck();
+              }
+              break;
+            case 70: // F buat buka Barn Door
               toggleBarnDoor();
               break;
             case 32: // Tombol Space
@@ -539,7 +589,6 @@
           );
           wheatDestroyed = 0; // Reset the counter
         }
-        console.log(wheatDestroyed);
       }
 
       function checkCollision() {
@@ -599,12 +648,6 @@
         requestAnimationFrame(animate);
         const doorKiri = objects.find((o) => o.sName.includes("BarnKiri"));
         const doorKanan = objects.find((o) => o.sName.includes("BarnKanan"));
-        console.log(
-          doorKiri.rotation.y,
-          doorKanan.rotation.y,
-          barnDoorOpenRotate,
-          barnDoorCloseRotate
-        );
         if (barnDoorOpenRotate) {
           barnDoorCloseRotate = false;
           const rotateOpen =
@@ -770,6 +813,44 @@
           cameraPosition.y = 8;
           camera.position.copy(cameraPosition);
           camera.lookAt(harvester.position);
+        } else if (truckMode) {
+          wheatCollision();
+          var truck = objects.find((o) => o.sName.includes("low_poly_truck"));
+          var truckSpeed = moveSpeed * 1.5;
+          var rotationSpeed = 0.025;
+          // var harvester = objects.find((o) => o.sName.includes("harvester"));
+          if (moveForward) {
+            truck.position.add(
+              moveVector.clone().multiplyScalar(truckSpeed)
+            );
+            if (moveLeft) {
+              truck.rotateY(rotationSpeed);
+            }
+            if (moveRight) {
+              truck.rotateY(-rotationSpeed);
+            }
+          }
+          if (moveBackward) {
+            truck.position.sub(
+              moveVector.clone().multiplyScalar(truckSpeed)
+            );
+            if (moveLeft) {
+              truck.rotateY(-rotationSpeed);
+            }
+            if (moveRight) {
+              truck.rotateY(rotationSpeed);
+            }
+          }
+          truck.position.y = 1;
+          var truckDirection = new THREE.Vector3();
+          truck.getWorldDirection(truckDirection);
+          var cameraDistance = 10;
+          var cameraPosition = new THREE.Vector3()
+            .copy(truck.position)
+            .sub(truckDirection.clone().multiplyScalar(cameraDistance));
+          cameraPosition.y = 8;
+          camera.position.copy(cameraPosition);
+          camera.lookAt(truck.position);
         } else {
           checkCollision();
           if (isJumping) {
