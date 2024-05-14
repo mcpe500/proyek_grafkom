@@ -54,6 +54,7 @@
 
       var harvester_position = { x: 10, y: 0.1, z: 10 };
       var harvesterPosition = new THREE.Vector3();
+      var previousHarvesterPosition = new THREE.Vector3();
       let wheatDestroyed = 0;
 
       var sunAngle = 0;
@@ -368,7 +369,7 @@
         cloudGroup.add(ambientLight);
 
         var floorGeometry = new THREE.PlaneGeometry(250, 250);
-        var floorMaterial = new THREE.MeshStandardMaterial({ color: 0x996633 });
+        var floorMaterial = new THREE.MeshStandardMaterial({ color: 0x527e1c });
         var floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.receiveShadow = true;
         floor.rotation.x = -Math.PI / 2;
@@ -502,7 +503,7 @@
             wheatDestroyed++;
           }
         });
-        if (wheatDestroyed >= 10) {
+        if (wheatDestroyed >= 20) {
           loadObject(
             "./textures/hay_bale_free.glb",
             harvester.position.x,
@@ -555,6 +556,55 @@
           controls.getObject().position.copy(previousPosition);
         } else {
           previousPosition.copy(controls.getObject().position);
+        }
+      }
+
+      function updateHarvesterBox() {
+        var harvester = objects.find((o) => o.sName.includes("harvester"));
+
+        var harvesterBox = new THREE.Box3().setFromObject(harvester);
+        var previousHarvesterPosition = new THREE.Vector3();
+        previousHarvesterPosition.copy(harvester.position);
+        var box = new THREE.Box3().setFromObject(harvester);
+        var center = new THREE.Vector3();
+        var size = new THREE.Vector3();
+
+        box.getCenter(center);
+        box.getSize(size);
+
+        var matrix = new THREE.Matrix4();
+        matrix.compose(
+          center,
+          harvester.quaternion,
+          new THREE.Vector3(1, 1, 1)
+        );
+
+        harvesterBox.setFromCenterAndSize(center, size);
+        harvesterBox.applyMatrix4(matrix);
+      }
+      function harvesterCollision() {
+        var harvester = objects.find((o) => o.sName.includes("harvester"));
+        var intersected = false;
+        var harvesterBox = new THREE.Box3().setFromObject(harvester);
+        var previousHarvesterPosition = new THREE.Vector3();
+        previousHarvesterPosition.copy(harvester.position);
+
+        // Update bounding box harvester
+        updateHarvesterBox();
+
+        // Periksa tabrakan dengan semua objek lain
+        objects.forEach(function (object) {
+          var objectBox = new THREE.Box3().setFromObject(object);
+
+          if (harvesterBox.intersectsBox(objectBox)) {
+            intersected = true;
+          }
+        });
+
+        if (intersected) {
+          harvester.position.copy(previousHarvesterPosition);
+        } else {
+          previousHarvesterPosition.copy(harvester.position);
         }
       }
 
@@ -698,6 +748,7 @@
         }
         if (harvesterMode) {
           wheatCollision();
+          harvesterCollision();
           var harvester = objects.find((o) => o.sName.includes("harvester"));
           var harvesterSpeed = moveSpeed / 2;
           var rotationSpeed = 0.01;
