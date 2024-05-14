@@ -311,14 +311,19 @@
         makeWalls("./textures/wooden_fence.glb", -30, -30, 15, 15);
         makeWheats("./textures/result/Wheat2.glb", -25, 0, 20, 20);
         // loadObject("./textures/barn.glb", -10, 2.8, 30, 1);
-        loadObject("./textures/result/newBarn_Home.glb", -10, 2.8, 30, 1);
-        // loadObject("./textures/result/newBarn_Home.glb", -10, 2.8, 30, 1, {
-        //   rotation: { x: 0, y: 270, z: 0 },
-        // });
-        loadObject("./textures/result/Barn_Door_2.glb", 2, 0, 32.5, 1.1);
+        loadObject("./textures/result/newBarn_Home.glb", -10, 0, 30, 3, {
+          rotation: { x: 0, y: 270, z: 0 },
+        });
+        // loadObject("./textures/result/Barn_Door_2.glb", 2, 0, 32.5, 1.1);
         // loadObject("./textures/result/Barn_House.glb", -10, 2.8, 30, 1, {
         //   rotation: { x: 0, y: 180, z: 0 },
         // });
+        loadObject("./textures/result/PintuBarnKanan.glb", 5.5, 0, 33, 3, {
+          rotation: { x: 0, y: 180, z: 0 },
+        });
+        loadObject("./textures/result/PintuBarnKiri.glb", 5.5, 0, 27, 3, {
+          rotation: { x: 0, y: 270, z: 0 },
+        });
         // loadObject("./textures/result/Barn_Door_2.glb", 2, 0, 32.5, 1.1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
         loadObject("./textures/original/low_poly_truck.glb", 27, 1, 15, 0.5, {
@@ -422,17 +427,31 @@
           }
         }
         function toggleBarnDoor() {
-          const door = objects.find((o) => o.sName.includes("Barn_Door"));
-          const distance = camera.position.distanceTo(door.position);
-          if (barnDoorMode == false && distance < 5) {
+          const doorKiri = objects.find((o) => o.sName.includes("BarnKiri"));
+          const doorKanan = objects.find((o) => o.sName.includes("BarnKanan"));
+          const distance =
+            (camera.position.distanceTo(doorKiri.position) +
+              camera.position.distanceTo(doorKanan.position)) /
+            2;
+          if (
+            barnDoorMode == false &&
+            distance < 10 &&
+            barnDoorOpenRotate == false
+          ) {
             barnDoorMode = true;
             barnDoorOpenRotate = true;
-            // console.log("d")
-            // door.rotation.set(0, -90, 0);
-          } else if (barnDoorMode == true) {
+
+            // doorKiri.rotation.set(0, THREE.MathUtils.degToRad(0), 0);
+            // doorKanan.rotation.set(0, THREE.MathUtils.degToRad(90), 0);
+          } else if (
+            barnDoorMode == true &&
+            distance < 10 &&
+            barnDoorCloseRotate == false
+          ) {
             barnDoorMode = false;
             barnDoorCloseRotate = true;
-            // door.rotation.set(0, 0, 0);
+            // doorKiri.rotation.set(0, THREE.MathUtils.degToRad(-90), 0);
+            // doorKanan.rotation.set(0, THREE.MathUtils.degToRad(180), 0);
           }
         }
         var onKeyDown = function (event) {
@@ -578,24 +597,36 @@
       }
       function animate() {
         requestAnimationFrame(animate);
-        const door = objects.find((o) => o.sName.includes("Barn_Door"));
-        // console.log(door.rotation.y, barnDoorCloseRotate, barnDoorOpenRotate);
+        const doorKiri = objects.find((o) => o.sName.includes("BarnKiri"));
+        const doorKanan = objects.find((o) => o.sName.includes("BarnKanan"));
+        console.log(
+          doorKiri.rotation.y,
+          doorKanan.rotation.y,
+          barnDoorOpenRotate,
+          barnDoorCloseRotate
+        );
         if (barnDoorOpenRotate) {
-          if (door.rotation.y < THREE.MathUtils.degToRad(-90)) {
+          barnDoorCloseRotate = false;
+          const rotateOpen =
+            doorKiri.rotation.y > THREE.MathUtils.degToRad(-90) &&
+            doorKiri.rotation.y < THREE.MathUtils.degToRad(360);
+          if (rotateOpen) {
+            rotate(doorKiri, { x: 0, y: 1, z: 0 });
+            rotate(doorKanan, { x: 0, y: -1, z: 0 });
+          } else {
             barnDoorOpenRotate = false;
-            // door.rotation.y = 0;
-          }
-          if (door.rotation.y <= 0) {
-            rotate(door, { x: 0, y: -1, z: 0 });
           }
         }
         if (barnDoorCloseRotate) {
-          if (door.rotation.y >= THREE.MathUtils.degToRad(0)) {
+          barnDoorOpenRotate = false;
+          const rotateClose =
+            doorKiri.rotation.y > THREE.MathUtils.degToRad(270) &&
+            doorKiri.rotation.y < THREE.MathUtils.degToRad(360 + 90);
+          if (rotateClose) {
+            rotate(doorKiri, { x: 0, y: -1, z: 0 });
+            rotate(doorKanan, { x: 0, y: 1, z: 0 });
+          } else {
             barnDoorCloseRotate = false;
-            door.rotation.y = 0;
-          }
-          if (door.rotation.y < 0) {
-            rotate(door, { x: 0, y: 1, z: 0 });
           }
         }
         var baling_baling_windmill = objects.find((o) =>
