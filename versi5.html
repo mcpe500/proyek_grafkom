@@ -45,6 +45,16 @@
       var clouds = [];
       var wheats = [];
       var objects = [];
+
+      var pickedUpHaybales = [];
+      var placedInBarnHaybales = [];
+      var wheatPlacementGeometry = new THREE.BoxGeometry(1, 1, 1);
+      var wheatPlacementMesh = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+      var wheatPlacementBox = new THREE.Mesh(
+        wheatPlacementGeometry,
+        wheatPlacementMesh
+      );
+
       var harvesterMode = false;
       var truckMode = false;
       var barnDoorMode = false;
@@ -110,12 +120,22 @@
         controls.unlock();
       }
 
-      function addObjectToCheck(object, objectFile) {
+      function addObjectToCheck(object, objectFile, callback = () => {}) {
         objects.push(object);
         objects[objects.length - 1].sName = objectFile;
+        objects[objects.length - 1].callbackCustom = callback;
       }
 
-      function loadObject(objectFile, x, y, z, scale, options = {}) {
+      function loadObject(
+        objectFile,
+        x,
+        y,
+        z,
+        scale,
+        options = {},
+        callback = () => {},
+        isCallback = false
+      ) {
         loader.load(objectFile, function (gltf) {
           var object = gltf.scene;
           object.position.set(x, y, z);
@@ -137,9 +157,15 @@
               object.position.y += options.center.y;
               object.position.z += options.center.z;
             }
+            if (options.checkCollision) {
+            }
           }
           scene.add(object);
-          addObjectToCheck(object, objectFile);
+          if (isCallback == true) {
+            addObjectToCheck(object, objectFile, callback(object));
+          } else {
+            addObjectToCheck(object, objectFile, callback);
+          }
         });
       }
 
@@ -307,6 +333,7 @@
         moonLight.shadow.camera.right += shadowSize;
         scene.add(moonLight);
         scene.add(new THREE.CameraHelper(moonLight.shadow.camera));
+        scene.add(wheatPlacementBox);
 
         const windmill_location = { x: 20, y: 0, z: 10 };
         loadObject(
@@ -574,7 +601,6 @@
         const harvesterRadius = 1.5;
         var harvesterDirection = new THREE.Vector3();
         harvester.getWorldDirection(harvesterDirection);
-        console.log(harvesterDirection);
 
         wheats.forEach((wheat, index) => {
           const wheatPosition = wheat.position;
@@ -595,7 +621,6 @@
           var dropLocation = new THREE.Vector3()
             .copy(harvester.position)
             .sub(harvesterDirection.clone().multiplyScalar(dropDistance));
-          console.log(harvesterDirection);
           loadObject(
             "./textures/hay_bale_free.glb",
             dropLocation.x,
@@ -608,10 +633,62 @@
                 y: 0,
                 z: harvesterDirection.z * 90,
               },
-            }
+            },
+            wheatPickup,
+            true
           );
           wheatDestroyed = 0; // Reset the counter
         }
+      }
+
+      function wheatPickup(haybale) {
+        haybale.pickedUp = false;
+        const haybalePickedUpScale = 0.0075;
+        return () => {
+          var truck = objects.find((o) => o.sName.includes("low_poly_truck"));
+
+          // console.log(
+          //   interactibleObject.position.distanceTo(wheatPlacementBox)
+          // );
+          if (interactibleObject == truck) {
+            const distance = interactibleObject.position.distanceTo(
+              haybale.position
+            );
+            if (
+              distance < 5 &&
+              haybale.pickedUp == false &&
+              pickedUpHaybales.length < 2
+            ) {
+              haybale.pickedUp = true;
+              pickedUpHaybales.push(haybale);
+              truck.add(haybale);
+              haybale.scale.set(
+                haybalePickedUpScale,
+                haybalePickedUpScale,
+                haybalePickedUpScale
+              );
+              for (let i = 0; i < pickedUpHaybales.length; i++) {
+                const current = pickedUpHaybales[i];
+                current.position.x = 0;
+                current.position.y = Math.floor(i / 2 + 1) * 2;
+                current.position.z = ((i % 2) + 1) * -2.3 - 0.725;
+                current.rotation.x = THREE.MathUtils.degToRad(0);
+                current.rotation.y = THREE.MathUtils.degToRad(0);
+                current.rotation.z = THREE.MathUtils.degToRad(90);
+              }
+            } else if (
+              interactibleObject.position.distanceTo(wheatPlacementBox) < 1
+            ) {
+              haybale.pickedUp = false;
+              pickedUpHaybales.pop();
+              scene.remove(haybale);
+              wheatPlacementBox.position.set(0, -10, 0);
+            }
+          }
+          // console.log(haybale);
+        };
+        // hay_bale_free
+        // var haybales = objects.filter((o) => o.sName.includes("hay_bale_free"));
       }
 
       function checkCollision() {
@@ -718,6 +795,7 @@
       }
       function animate() {
         requestAnimationFrame(animate);
+        objects.forEach((o) => o.callbackCustom());
         const doorKiri = objects.find((o) => o.sName.includes("BarnKiri"));
         const doorKanan = objects.find((o) => o.sName.includes("BarnKanan"));
         if (barnDoorOpenRotate) {
