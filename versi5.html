@@ -572,6 +572,10 @@
         var harvester = objects.find((o) => o.sName.includes("harvester"));
         const harvesterPosition = harvester.position;
         const harvesterRadius = 1.5;
+        var harvesterDirection = new THREE.Vector3();
+        harvester.getWorldDirection(harvesterDirection);
+        console.log(harvesterDirection);
+
         wheats.forEach((wheat, index) => {
           const wheatPosition = wheat.position;
           const distance = Math.sqrt(
@@ -585,15 +589,24 @@
             wheatDestroyed++;
           }
         });
+
         if (wheatDestroyed >= 20) {
+          var dropDistance = 1.5;
+          var dropLocation = new THREE.Vector3()
+            .copy(harvester.position)
+            .sub(harvesterDirection.clone().multiplyScalar(dropDistance));
           loadObject(
             "./textures/hay_bale_free.glb",
-            harvester.position.x,
+            dropLocation.x,
             0.7,
-            harvester.position.z,
+            dropLocation.z,
             0.005,
             {
-              rotation: { x: 90, y: 0, z: 0 },
+              rotation: {
+                x: 90,
+                y: 0,
+                z: harvesterDirection.x * 180,
+              },
             }
           );
           wheatDestroyed = 0; // Reset the counter
@@ -875,7 +888,7 @@
               harvester.rotateY(rotationSpeed);
             }
           }
-          harvester.position.y = 0;
+          harvester.position.y = harvester_position.y;
           var harvesterDirection = new THREE.Vector3();
           harvester.getWorldDirection(harvesterDirection);
           var cameraDistance = 10;
