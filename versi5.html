@@ -26,11 +26,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"></script>
-    <script src="./library/threejs-octree/dist/bundle.js"></script>
+    <!-- <script src="./library/threejs-octree/dist/bundle.js"></script> -->
     <script>
-      const octree = new Octree(16, 4);
-      console.log(octree);
-
       var scene, renderer, controls, camera;
       var moveForward = false;
       var moveBackward = false;
@@ -99,6 +96,21 @@
       lensflare.addElement(new THREE.LensflareElement(textureFlare3, 120, 0.9));
       lensflare.addElement(new THREE.LensflareElement(textureFlare3, 70, 1));
 
+      var spotlight = new THREE.SpotLight(0xffffff, 1);
+      spotlight.angle = Math.PI / 6;
+      spotlight.penumbra = 0.5;
+      spotlight.decay = 2;
+      spotlight.distance = 200;
+      var spotlightPosition = new THREE.Vector3(10, 5, 10);
+      var spotlightTarget = new THREE.Vector3(0, 0, 0);
+      var spotlight = new THREE.SpotLight(0xffffff, 1);
+      spotlight.position.copy(spotlightPosition);
+      spotlight.castShadow = true;
+      spotlight.intensity = 0;
+      var targetObject = new THREE.Object3D();
+      targetObject.position.copy(spotlightTarget);
+      spotlight.target = targetObject;
+
       var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
       var shadowSize = 150;
       var orbitRadius = 150;
@@ -111,18 +123,21 @@
       var interactibleObject;
 
       function switchToFirstPersonMode() {
+        spotlight.intensity = 0;
         camera.position.copy(firstPersonCameraPosition);
         camera.rotation.copy(firstPersonCameraRotation);
         controls.lock();
       }
 
       function switchToharvesterMode() {
+        spotlight.intensity = 1;
         firstPersonCameraPosition.copy(camera.position);
         firstPersonCameraRotation.copy(camera.rotation);
         controls.unlock();
       }
 
       function switchTotruckMode() {
+        spotlight.intensity = 1;
         firstPersonCameraPosition.copy(camera.position);
         firstPersonCameraRotation.copy(camera.rotation);
         controls.unlock();
@@ -165,7 +180,13 @@
               object.position.y += options.center.y;
               object.position.z += options.center.z;
             }
-            if (options.checkCollision) {
+            if (options.shadow == false) {
+              object.traverse(function (node) {
+                if (node.isMesh) {
+                  node.receiveShadow = false;
+                  node.castShadow = false;
+                }
+              });
             }
           }
           scene.add(object);
@@ -330,7 +351,7 @@
         sunLight.shadow.camera.right += shadowSize;
         sunLight.add(lensflare);
         scene.add(sunLight);
-        scene.add(new THREE.CameraHelper(sunLight.shadow.camera));
+        // scene.add(new THREE.CameraHelper(sunLight.shadow.camera));
 
         moonLight.castShadow = true;
         moonLight.shadow.mapSize.width = 2048;
@@ -340,7 +361,11 @@
         moonLight.shadow.camera.left -= shadowSize;
         moonLight.shadow.camera.right += shadowSize;
         scene.add(moonLight);
-        scene.add(new THREE.CameraHelper(moonLight.shadow.camera));
+
+        scene.add(spotlight);
+        scene.add(targetObject);
+
+        // scene.add(new THREE.CameraHelper(moonLight.shadow.camera));
         scene.add(wheatPlacementBox);
 
         const windmill_location = { x: 20, y: 0, z: 10 };
@@ -387,7 +412,36 @@
         });
         // loadObject("./textures/result/Barn_Door_2.glb", 2, 0, 32.5, 1.1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
-        loadObject("./textures/moon2.glb", 10, 0, 10, 3);
+        loadObject("./textures/moon2.glb", 10, 0, 10, 3, { shadow: false });
+        loadObject("./textures/result/shovel.glb", 15, 0, 10, 1);
+        loadObject("./textures/result/hammer.glb", 20, 0, 10, 1);
+        loadObject("./textures/result/barrel.glb", 25, 0, 10, 1);
+        loadObject("./textures/result/big_rock.glb", 30, 0, 10, 1);
+        loadObject("./textures/result/big_haybale.glb", 35, 0, 10, 1);
+        // loadObject("./textures/result/sign.glb", 35, 0, 15, 1);
+        loadObject("./textures/result/small_haybale.glb", 35, 0, 20, 1);
+        loadObject("./textures/result/small_rock.glb", 35, 0, 25, 1);
+        loadObject("./textures/result/hollow_box.glb", 35, 0, 30, 1);
+        loadObject(
+          "./textures/result/hollow_box_top_panjang.glb",
+          35,
+          0,
+          30,
+          1
+        );
+        loadObject("./textures/result/hollow_box_panjang.glb", 35, 0, 35, 1);
+        loadObject("./textures/result/pickaxe.glb", 30, 0, 15, 1);
+        loadObject("./textures/result/square_wheat_barn_big.glb", 30, 0, 20, 1);
+        loadObject(
+          "./textures/result/square_wheat_barn_small.glb",
+          30,
+          0,
+          25,
+          1
+        );
+        loadObject("./textures/result/crate_full_walled.glb", 30, 0, 30, 1);
+        // loadObject("./textures/result/crate_original.glb", 25, 0, 30, 1);
+        // loadObject("./textures/result/hay_stack.glb", 30, 0, 25, 1);
         loadObject(
           "./textures/original/low_poly_truck.glb",
           30,
@@ -985,6 +1039,15 @@
           cameraPosition.y = 8;
           camera.position.copy(cameraPosition);
           camera.lookAt(harvester.position);
+
+          var lightPosition = new THREE.Vector3()
+            .copy(harvester.position)
+            .add(harvesterDirection.clone().multiplyScalar(3));
+          var lightTarget = new THREE.Vector3()
+            .copy(harvester.position)
+            .add(harvesterDirection.clone().multiplyScalar(cameraDistance));
+          spotlight.position.copy(lightPosition);
+          spotlight.target.position.copy(lightTarget.clone());
         } else if (truckMode) {
           wheatCollision();
           var truck = objects.find((o) => o.sName.includes("low_poly_truck"));
@@ -1018,6 +1081,15 @@
           cameraPosition.y = 8;
           camera.position.copy(cameraPosition);
           camera.lookAt(truck.position);
+
+          var lightPosition = new THREE.Vector3()
+            .copy(truck.position)
+            .add(truckDirection.clone().multiplyScalar(3));
+          var lightTarget = new THREE.Vector3()
+            .copy(truck.position)
+            .add(truckDirection.clone().multiplyScalar(cameraDistance));
+          spotlight.position.copy(lightPosition);
+          spotlight.target.position.copy(lightTarget.clone());
         } else {
           checkCollision();
           if (isJumping) {
