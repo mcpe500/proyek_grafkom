@@ -595,6 +595,7 @@
           var dropLocation = new THREE.Vector3()
             .copy(harvester.position)
             .sub(harvesterDirection.clone().multiplyScalar(dropDistance));
+          console.log(harvesterDirection);
           loadObject(
             "./textures/hay_bale_free.glb",
             dropLocation.x,
@@ -605,7 +606,7 @@
               rotation: {
                 x: 90,
                 y: 0,
-                z: harvesterDirection.x * 180,
+                z: harvesterDirection.z * 90,
               },
             }
           );
