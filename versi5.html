@@ -66,7 +66,7 @@
       var sunLight = new THREE.DirectionalLight(0xffffff, 0.5);
       var moonLight = new THREE.DirectionalLight(0xffffff, 0.5);
       var hemisphereDay = new THREE.HemisphereLight(0xffffff, 0.5);
-
+      var moon;
       var textureLoader = new THREE.TextureLoader();
       var lensflare = new THREE.Lensflare();
       var textureFlare0 = textureLoader.load(
@@ -352,6 +352,7 @@
         });
         // loadObject("./textures/result/Barn_Door_2.glb", 2, 0, 32.5, 1.1);
         loadObject("./textures/scarecrow.glb", 10, 0, 10, 1);
+        loadObject("./textures/moon2.glb", 10, 0, 10, 3);
         loadObject("./textures/original/low_poly_truck.glb", 30, 1, 35, 0.5, {
           rotation: { x: 0, y: 270, z: 0 },
         });
@@ -746,6 +747,18 @@
         moonLight.position.y = Math.sin(sunAngle) * orbitRadius;
         moonLight.position.z = 0;
 
+        moon = objects.find((o) => o.sName.includes("moon"));
+        if (moon) {
+          moon.position.x = Math.cos(sunAngle) * orbitRadius;
+          moon.position.y = Math.sin(sunAngle) * orbitRadius;
+          moon.position.z = 0;
+          if (dayNightCycle === 0) {
+            moon.visible = false;
+          } else {
+            moon.visible = true;
+          }
+        }
+
         var skyColor;
         var sunriseColor = new THREE.Color(0.8, 0.6, 0.2);
         var morningColor = new THREE.Color(0.2, 0.6, 0.8);
@@ -756,6 +769,7 @@
 
         var transitionProgress = sunAngle / maxSunAngle;
         if (dayNightCycle === 0) {
+          lensflare.visible = true;
           if (transitionProgress < 0.25) {
             skyColor = sunriseColor.lerp(
               morningColor,
@@ -784,6 +798,7 @@
               0.5 - ((transitionProgress - 0.75) / 0.25) * 0.5;
           }
         } else {
+          lensflare.visible = false;
           if (transitionProgress < 0.1) {
             skyColor = sunsetColor.lerp(nightColor, transitionProgress / 0.1);
             moonLight.intensity = (transitionProgress / 0.1) * 0.25;
@@ -831,7 +846,6 @@
           var harvester = objects.find((o) => o.sName.includes("harvester"));
           var harvesterSpeed = moveSpeed / 2;
           var rotationSpeed = 0.01;
-          // var harvester = objects.find((o) => o.sName.includes("harvester"));
           if (moveForward) {
             harvester.position.add(
               moveVector.clone().multiplyScalar(harvesterSpeed)
@@ -869,11 +883,8 @@
           var truck = objects.find((o) => o.sName.includes("low_poly_truck"));
           var truckSpeed = moveSpeed * 1.5;
           var rotationSpeed = 0.025;
-          // var harvester = objects.find((o) => o.sName.includes("harvester"));
           if (moveForward) {
-            truck.position.add(
-              moveVector.clone().multiplyScalar(truckSpeed)
-            );
+            truck.position.add(moveVector.clone().multiplyScalar(truckSpeed));
             if (moveLeft) {
               truck.rotateY(rotationSpeed);
             }
@@ -882,9 +893,7 @@
             }
           }
           if (moveBackward) {
-            truck.position.sub(
-              moveVector.clone().multiplyScalar(truckSpeed)
-            );
+            truck.position.sub(moveVector.clone().multiplyScalar(truckSpeed));
             if (moveLeft) {
               truck.rotateY(-rotationSpeed);
             }
