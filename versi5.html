@@ -56,12 +56,18 @@
 
       var pickedUpHaybales = [];
       var placedInBarnHaybales = [];
-      var wheatPlacementGeometry = new THREE.BoxGeometry(1, 1, 1);
-      var wheatPlacementMesh = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+
+      var wheatPlacementGeometry = new THREE.BoxGeometry(1, 4, 8);
+      var wheatPlacementMesh = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        opacity: 0.0,
+        transparent: true,
+      });
       var wheatPlacementBox = new THREE.Mesh(
         wheatPlacementGeometry,
         wheatPlacementMesh
       );
+      wheatPlacementBox.position.set(4, 2, 30);
 
       var harvesterMode = false;
       var truckMode = false;
@@ -652,20 +658,24 @@
       function wheatPickup(haybale) {
         haybale.pickedUp = false;
         const haybalePickedUpScale = 0.0075;
-        return () => {
-          var truck = objects.find((o) => o.sName.includes("low_poly_truck"));
+        const maxHaybales = 2;
+        const pickupDistance = 5;
+        const dropoffDistanceLimit = 4;
 
-          // console.log(
-          //   interactibleObject.position.distanceTo(wheatPlacementBox)
-          // );
+        return () => {
+          const truck = objects.find((o) => o.sName.includes("low_poly_truck"));
           if (interactibleObject == truck) {
             const distance = interactibleObject.position.distanceTo(
               haybale.position
             );
+            const dropoffDistance = interactibleObject.position.distanceTo(
+              wheatPlacementBox.position
+            );
+
             if (
-              distance < 5 &&
-              haybale.pickedUp == false &&
-              pickedUpHaybales.length < 2
+              distance < pickupDistance &&
+              !haybale.pickedUp &&
+              pickedUpHaybales.length < maxHaybales
             ) {
               haybale.pickedUp = true;
               pickedUpHaybales.push(haybale);
@@ -677,26 +687,46 @@
               );
               for (let i = 0; i < pickedUpHaybales.length; i++) {
                 const current = pickedUpHaybales[i];
-                current.position.x = 0;
-                current.position.y = Math.floor(i / 2 + 1) * 2;
-                current.position.z = ((i % 2) + 1) * -2.3 - 0.725;
-                current.rotation.x = THREE.MathUtils.degToRad(0);
-                current.rotation.y = THREE.MathUtils.degToRad(0);
-                current.rotation.z = THREE.MathUtils.degToRad(90);
+                current.position.set(
+                  0,
+                  Math.floor(i / 2 + 1) * 2,
+                  ((i % 2) + 1) * -2.3 - 0.725
+                );
+                current.rotation.set(
+                  THREE.MathUtils.degToRad(0),
+                  THREE.MathUtils.degToRad(0),
+                  THREE.MathUtils.degToRad(90)
+                );
               }
-            } else if (
-              interactibleObject.position.distanceTo(wheatPlacementBox) < 1
-            ) {
-              haybale.pickedUp = false;
-              pickedUpHaybales.pop();
-              scene.remove(haybale);
-              wheatPlacementBox.position.set(0, -10, 0);
+            } else if (dropoffDistance < dropoffDistanceLimit) {
+              // console.log(pickedUpHaybales);
+              if (pickedUpHaybales.length >= 1) {
+                const current = pickedUpHaybales[0];
+                current.callbackCustom = () => {};
+                truck.remove(current);
+                scene.remove(current);
+                pickedUpHaybales.shift();
+                const prevLength = pickedUpHaybales.length;
+                placedInBarnHaybales.push(current);
+                console.log(placedInBarnHaybales);
+                for (let i = prevLength; i < placedInBarnHaybales.length; i++) {
+                  const placeHaybale = placedInBarnHaybales[i];
+                  placeHaybale.position.set(
+                    -22.5,
+                    1 + Math.floor(i / 6) * 2,
+                    35 - (i % 6) * 2
+                  );
+                  placeHaybale.rotation.set(
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(90)
+                  );
+                }
+                scene.add(current);
+              }
             }
           }
-          // console.log(haybale);
         };
-        // hay_bale_free
-        // var haybales = objects.filter((o) => o.sName.includes("hay_bale_free"));
       }
 
       function checkCollision() {
