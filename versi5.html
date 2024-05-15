@@ -26,7 +26,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"></script>
-    <!-- <script src="./library/threejs-octree/dist/bundle.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/three-mesh-bvh/dist/three-mesh-bvh.min.js"></script>
+    <script src="./library/threejs-octree/dist/bundle.js"></script>
+    <script src="./library/threejs-mesh-bvh/dist/index.umd.cjs"></script>
     <script>
       var scene, renderer, controls, camera;
       var moveForward = false;
@@ -62,10 +64,13 @@
         opacity: 0.0,
         transparent: true,
       });
-      var wheatPlacementBox = new THREE.Mesh(
+      var wheatPlacementBox = new THREE.InstancedMesh(
         wheatPlacementGeometry,
-        wheatPlacementMesh
+        wheatPlacementMesh,
+        1 // instance count
       );
+      wheatPlacementBox.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // for updating position
+
       wheatPlacementBox.position.set(4, 2, 30);
 
       var harvesterMode = false;
@@ -177,8 +182,20 @@
       ) {
         loader.load(objectFile, function (gltf) {
           var object = gltf.scene;
+          var lod = new THREE.LOD();
+
           object.position.set(x, y, z);
           object.scale.set(scale, scale, scale);
+          lod.addLevel(object, 0);
+
+          // Add simplified version of the model for distant view
+          var simplifiedObject = object.clone();
+          // Apply simplification here
+          lod.addLevel(simplifiedObject, 80);
+
+          lod.updateMatrix();
+          lod.matrixAutoUpdate = false;
+
           object.traverse(function (node) {
             if (node.isMesh) {
               node.receiveShadow = true;
@@ -205,7 +222,8 @@
               });
             }
           }
-          scene.add(object);
+          // scene.add(object);
+          scene.add(lod);
           if (isCallback == true) {
             addObjectToCheck(object, objectFile, callback(object));
           } else {
@@ -221,7 +239,6 @@
         object.rotation.y += degToRad(y);
         object.rotation.z += degToRad(z);
       }
-
       async function makeWalls(objectFile, startX, startZ, w, h) {
         const width = w + 1;
         const height = h + 1;
