@@ -700,6 +700,15 @@
             case 70: // F buat buka Barn Door
               toggleBarnDoor();
               break;
+            case 81: // Q  lampu mobil
+              if (harvesterMode || truckMode) {
+                if (spotlight.intensity == 0) {
+                  spotlight.intensity = 1;
+                } else {
+                  spotlight.intensity = 0;
+                }
+              }
+              break;
             case 32: // Tombol Space
               if (!isJumping) {
                 isJumping = true;
