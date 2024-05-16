@@ -56,6 +56,7 @@
       var wheats = [];
       var objects = [];
 
+      var droppedHaybales = [];
       var pickedUpHaybales = [];
       var placedInBarnHaybales = [];
 
@@ -193,71 +194,12 @@
           const hasRotation = options.rotation !== undefined;
           const hasCenter = options.center !== undefined;
           const disableShadow = options.shadow === false;
+
+          // Create a BoxHelper for the mesh and add it to the scene
           object.traverse((node) => {
             if (node.isMesh) {
               node.receiveShadow = !disableShadow;
               node.castShadow = !disableShadow;
-              //   const objectColor = node.material.color;
-
-              //   console.log(node, node.material.color);
-              //   const aoMapShader = {
-              //     uniforms: {
-              //       aoMapIntensity: { value: 1.0 },
-              //       uColor: { value: new THREE.Color() }, // Menggunakan warna dari material
-              //     },
-              //     vertexShader: `
-              //     varying vec3 vNormal;
-              //     varying vec3 vPosition;
-
-              //     void main() {
-              //         vNormal = normal;
-              //         vPosition = position;
-              //         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-              //     }
-              // `,
-              //     fragmentShader: `
-              //     varying vec3 vNormal;
-              //     varying vec3 vPosition;
-
-              //     uniform float aoMapIntensity;
-              //     uniform vec3 uColor; // Mengambil warna dari material
-
-              //     // Fungsi untuk menghitung ambient occlusion
-              //     float calculateAO(vec3 normal) {
-              //         // Ganti ini dengan perhitungan ambient occlusion yang sesuai
-              //         return 1.0 - pow(abs(dot(normal, vec3(0.0, 0.0, 1.0))), 4.0);
-              //     }
-
-              //     void main() {
-              //         // Menghitung normal dan kedalaman di fragment shader
-              //         vec3 normal = normalize(vNormal);
-              //         float depth = length(vPosition);
-
-              //         // Menghitung ambient occlusion
-              //         float ao = calculateAO(normal);
-
-              //         // Warna objek asli dari material
-              //         vec3 objectColor = uColor;
-
-              //         // Menghitung efek ambient occlusion pada warna asli objek
-              //         vec3 ambientOccludedColor = objectColor * (1.0 - ao * aoMapIntensity);
-
-              //         // Menghasilkan warna akhir dengan efek ambient occlusion
-              //         vec3 finalColor = mix(objectColor, ambientOccludedColor, ao);
-
-              //         gl_FragColor = vec4(finalColor, 1.0);
-              //     }
-              // `,
-              //   };
-              // aoMapShader.uniforms.uColor.value = objectColor;
-              // const aoMapMaterial = new THREE.ShaderMaterial({
-              //   uniforms: aoMapShader.uniforms,
-              //   vertexShader: aoMapShader.vertexShader,
-              //   fragmentShader: aoMapShader.fragmentShader,
-              // });
-              // if (node.material.color) {
-              //   node.material = aoMapMaterial;
-              // }
             }
           });
 
@@ -280,7 +222,21 @@
           scene.add(object);
 
           const finalCallback = isCallback ? callback(object) : callback;
-          addObjectToCheck(object, objectFile, finalCallback);
+          if (isCallback) {
+            object.sName = objectFile;
+            object.callbackCustom = callback(object);
+          }
+          if (options.isCheckObject == false) {
+          } else if (options.isCheckObject == true) {
+            addObjectToCheck(object, objectFile, finalCallback);
+          } else if (
+            options.isCheckObject == undefined ||
+            options.isCheckObject == null
+          ) {
+            addObjectToCheck(object, objectFile, finalCallback);
+          } else {
+          }
+          // addObjectToCheck(object, objectFile, finalCallback);
         });
       }
 
@@ -771,9 +727,9 @@
             interactibleObject = camera;
             harvesterMode = false;
             switchToFirstPersonMode();
-            camera.position.x = harvester.position.x + 2;
-            camera.position.y = 5;
-            camera.position.z = harvester.position.z + 2;
+            camera.position.x = harvester.position.x;
+            camera.position.y = 7;
+            camera.position.z = harvester.position.z;
           }
         }
         function enterTruck() {
@@ -949,7 +905,7 @@
         });
 
         if (wheatDestroyed >= 30) {
-          var dropDistance = 1.5;
+          var dropDistance = 1.65;
           var dropLocation = new THREE.Vector3()
             .copy(harvester.position)
             .sub(harvesterDirection.clone().multiplyScalar(dropDistance));
@@ -965,6 +921,7 @@
                 y: 0,
                 z: harvesterDirection.z * 90,
               },
+              isCheckObject: false,
             },
             wheatPickup,
             true
@@ -978,8 +935,8 @@
         const maxHaybales = 2;
         const pickupDistance = 5;
         const dropoffDistanceLimit = 4;
-
-        return () => {
+        droppedHaybales.push(haybale);
+        return function () {
           const truck = objects.find((o) => o.sName.includes("low_poly_truck"));
           if (interactibleObject == truck) {
             const distance = interactibleObject.position.distanceTo(
@@ -1119,92 +1076,90 @@
       // }
 
       function checkCollision() {
-        var raycasters = [];
-        raycasters.push(
-          new THREE.Raycaster(
-            controls.getObject().position,
-            new THREE.Vector3(0, 0, -1)
-          )
+        // Check if the interactibleObject is a truck or harvester
+        if (interactibleObject.sName !== "truck") {
+        } else if (interactibleObject.sName !== "harvester") {
+        } else if (interactibleObject == camera) {
+        }
+        const directions = [
+          new THREE.Vector3(0, 0, -1), // forward
+          new THREE.Vector3(0, 0, 1), // backward
+          new THREE.Vector3(-1, 0, 0), // left
+          new THREE.Vector3(1, 0, 0), // right
+          new THREE.Vector3(-1, 0, -1), // forward left
+          new THREE.Vector3(1, 0, -1), // forward right
+          new THREE.Vector3(-1, 0, 1), // backward left
+          new THREE.Vector3(1, 0, 1), // backward right
+        ];
+
+        const raycasters = directions.map(
+          (direction) =>
+            new THREE.Raycaster(interactibleObject.position, direction)
         );
-        raycasters.push(
-          new THREE.Raycaster(
-            controls.getObject().position,
-            new THREE.Vector3(0, 0, 1)
-          )
-        );
-        raycasters.push(
-          new THREE.Raycaster(
-            controls.getObject().position,
-            new THREE.Vector3(-1, 0, 0)
-          )
-        );
-        raycasters.push(
-          new THREE.Raycaster(
-            controls.getObject().position,
-            new THREE.Vector3(1, 0, 0)
-          )
-        );
-        var intersected = false;
-        raycasters.forEach(function (raycaster) {
-          var intersects = raycaster.intersectObjects(objects, true);
+
+        let intersected = false;
+        raycasters.forEach((raycaster) => {
+          const intersects = raycaster.intersectObjects(objects, true);
           if (intersects.length > 0 && intersects[0].distance < 1) {
             intersected = true;
           }
         });
+
         if (intersected) {
-          controls.getObject().position.copy(previousPosition);
+          interactibleObject.position.copy(previousPosition);
         } else {
-          previousPosition.copy(controls.getObject().position);
+          previousPosition.copy(interactibleObject.position);
         }
       }
 
-      function updateHarvesterBox() {
-        var harvester = objects.find((o) => o.sName.includes("harvester"));
+      // function updateHarvesterBox() {
+      //   var harvester = objects.find((o) => o.sName.includes("harvester"));
 
-        var harvesterBox = new THREE.Box3().setFromObject(harvester);
-        var previousHarvesterPosition = new THREE.Vector3();
-        previousHarvesterPosition.copy(harvester.position);
-        var box = new THREE.Box3().setFromObject(harvester);
-        var center = new THREE.Vector3();
-        var size = new THREE.Vector3();
+      //   var harvesterBox = new THREE.Box3().setFromObject(harvester);
+      //   var previousHarvesterPosition = new THREE.Vector3();
+      //   previousHarvesterPosition.copy(harvester.position);
+      //   var box = new THREE.Box3().setFromObject(harvester);
+      //   var center = new THREE.Vector3();
+      //   var size = new THREE.Vector3();
 
-        box.getCenter(center);
-        box.getSize(size);
+      //   box.getCenter(center);
+      //   box.getSize(size);
 
-        var matrix = new THREE.Matrix4();
-        matrix.compose(
-          center,
-          harvester.quaternion,
-          new THREE.Vector3(1, 1, 1)
-        );
+      //   var matrix = new THREE.Matrix4();
+      //   matrix.compose(
+      //     center,
+      //     harvester.quaternion,
+      //     new THREE.Vector3(1, 1, 1)
+      //   );
 
-        harvesterBox.setFromCenterAndSize(center, size);
-        harvesterBox.applyMatrix4(matrix);
-      }
+      //   harvesterBox.setFromCenterAndSize(center, size);
+      //   harvesterBox.applyMatrix4(matrix);
+      // }
       function harvesterCollision() {
-        var harvester = objects.find((o) => o.sName.includes("harvester"));
-        var intersected = false;
-        var harvesterBox = new THREE.Box3().setFromObject(harvester);
-        var previousHarvesterPosition = new THREE.Vector3();
-        previousHarvesterPosition.copy(harvester.position);
-
-        // Update bounding box harvester
-        updateHarvesterBox();
-
-        // Periksa tabrakan dengan semua objek lain
-        objects.forEach(function (object) {
-          var objectBox = new THREE.Box3().setFromObject(object);
-
-          if (harvesterBox.intersectsBox(objectBox)) {
-            intersected = true;
-          }
-        });
-
-        if (intersected) {
-          harvester.position.copy(previousHarvesterPosition);
-        } else {
-          previousHarvesterPosition.copy(harvester.position);
-        }
+        // var harvester = objects.find((o) => o.sName.includes("harvester"));
+        // var intersected = false;
+        // var harvesterBox = new THREE.Box3().setFromObject(harvester);
+        // var previousHarvesterPosition = {
+        //   x: harvester.position.x,
+        //   y: harvester.position.y,
+        //   z: harvester.position.z,
+        // };
+        // // var previousHarvesterPosition = new THREE.Vector3();
+        // // previousHarvesterPosition.copy(harvester.position);
+        // // Update bounding box harvester
+        // // updateHarvesterBox();
+        // // Periksa tabrakan dengan semua objek lain
+        // objects.forEach(function (object) {
+        //   // var objectBox = new THREE.Box3().setFromObject(object);
+        //   // if (harvesterBox.intersectsBox(objectBox)) {
+        //   //   intersected = true;
+        //   // }
+        // });
+        // if (intersected) {
+        //   harvester.position.copy(previousHarvesterPosition);
+        // } else {
+        //   previousHarvesterPosition.copy(harvester.position);
+        // }
       }
 
       function animateJump() {
@@ -1220,9 +1175,17 @@
           isJumping = false;
         }
       }
+
       function animate() {
         requestAnimationFrame(animate);
+
+        // // Create a BoxHelper for the mesh and add it to the scene
+        // const nboxHelper = new THREE.BoxHelper(object, 0xffff00); // yellow color
+        // scene.add(nboxHelper);
         objects.forEach((o) => (o.callbackCustom ? o.callbackCustom() : ""));
+        droppedHaybales.forEach((o) =>
+          o.callbackCustom ? o.callbackCustom() : ""
+        );
         const doorKiri = objects.find((o) => o.sName.includes("BarnKiri"));
         const doorKanan = objects.find((o) => o.sName.includes("BarnKanan"));
         if (barnDoorOpenRotate) {
@@ -1372,12 +1335,14 @@
             clouds[i].position.z = Math.random() * 500 - 200;
           }
         }
+        checkCollision();
         if (harvesterMode) {
           wheatCollision();
           harvesterCollision();
           var harvester = objects.find((o) => o.sName.includes("harvester"));
-          var harvesterSpeed = moveSpeed / 2;
+          var harvesterSpeed = moveSpeed * 2;
           var rotationSpeed = 0.01;
+          const newPosition = harvester.position.clone();
           if (moveForward) {
             harvester.position.add(
               moveVector.clone().multiplyScalar(harvesterSpeed)
@@ -1400,7 +1365,14 @@
               harvester.rotateY(rotationSpeed);
             }
           }
+          // Check for collision with the new position
+          // const intersected = checkCollision(newPosition, harvester);
+          // if (intersected) {
+          //   harvester.position.copy(newPosition);
+          // }
+
           harvester.position.y = harvester_position.y;
+          // harvester.position.y = harvester_position.y + 1;
           var harvesterDirection = new THREE.Vector3();
           harvester.getWorldDirection(harvesterDirection);
           var cameraDistance = 10;
@@ -1424,6 +1396,7 @@
           var truck = objects.find((o) => o.sName.includes("low_poly_truck"));
           var truckSpeed = moveSpeed * 1.5;
           var rotationSpeed = 0.025;
+          const newPosition = truck.position.clone();
           if (moveForward) {
             truck.position.add(moveVector.clone().multiplyScalar(truckSpeed));
             if (moveLeft) {
@@ -1442,6 +1415,12 @@
               truck.rotateY(rotationSpeed);
             }
           }
+          // const intersected = checkCollision(newPosition, truck);
+
+          // if (intersected) {
+          //   truck.position.copy(newPosition);
+          // }
+
           truck.position.y = 1.15;
           var truckDirection = new THREE.Vector3();
           truck.getWorldDirection(truckDirection);
@@ -1462,7 +1441,7 @@
           spotlight.position.copy(lightPosition);
           spotlight.target.position.copy(lightTarget.clone());
         } else {
-          checkCollision();
+          const newPosition = controls.getObject().position.clone();
           if (isJumping) {
             animateJump();
           }
@@ -1493,6 +1472,12 @@
                   .cross(controls.getObject().up)
                   .multiplyScalar(moveSpeed)
               );
+
+          // const intersected = checkCollision(newPosition, controls.getObject());
+
+          // if (intersected) {
+          //   controls.getObject().position.copy(newPosition);
+          // }
         }
 
         renderer.render(scene, camera);
