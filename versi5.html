@@ -9,14 +9,17 @@
         margin: 0;
         overflow: hidden;
       }
+
       canvas {
         display: block;
       }
+
       .hide-cursor {
         cursor: none;
       }
     </style>
   </head>
+
   <body>
     <script
       async
@@ -182,42 +185,42 @@
         callback = () => {},
         isCallback = false
       ) {
-        loader.load(objectFile, function (gltf) {
-          var object = gltf.scene;
+        loader.load(objectFile, (gltf) => {
+          const object = gltf.scene;
           object.position.set(x, y, z);
           object.scale.set(scale, scale, scale);
-          object.traverse(function (node) {
+
+          const hasRotation = options.rotation !== undefined;
+          const hasCenter = options.center !== undefined;
+          const disableShadow = options.shadow === false;
+
+          object.traverse((node) => {
             if (node.isMesh) {
-              node.receiveShadow = true;
-              node.castShadow = true;
+              node.receiveShadow = !disableShadow;
+              node.castShadow = !disableShadow;
             }
           });
-          if (options) {
-            if (options.rotation) {
-              object.rotation.x = THREE.MathUtils.degToRad(options.rotation.x);
-              object.rotation.y = THREE.MathUtils.degToRad(options.rotation.y);
-              object.rotation.z = THREE.MathUtils.degToRad(options.rotation.z);
-            }
-            if (options.center) {
-              object.position.x += options.center.x;
-              object.position.y += options.center.y;
-              object.position.z += options.center.z;
-            }
-            if (options.shadow == false) {
-              object.traverse(function (node) {
-                if (node.isMesh) {
-                  node.receiveShadow = false;
-                  node.castShadow = false;
-                }
-              });
-            }
+
+          if (hasRotation) {
+            const { rotation } = options;
+            object.rotation.set(
+              THREE.MathUtils.degToRad(rotation.x || 0),
+              THREE.MathUtils.degToRad(rotation.y || 0),
+              THREE.MathUtils.degToRad(rotation.z || 0)
+            );
           }
+
+          if (hasCenter) {
+            const { center } = options;
+            object.position.add(
+              new THREE.Vector3(center.x || 0, center.y || 0, center.z || 0)
+            );
+          }
+
           scene.add(object);
-          if (isCallback == true) {
-            addObjectToCheck(object, objectFile, callback(object));
-          } else {
-            addObjectToCheck(object, objectFile, callback);
-          }
+
+          const finalCallback = isCallback ? callback(object) : callback;
+          addObjectToCheck(object, objectFile, finalCallback);
         });
       }
 
@@ -234,20 +237,21 @@
         const height = h + 1;
         const spacing = 5 * 0.975;
         const positionsAndRotations = [];
-        // Load the GLB file once outside the loop
+
         let gltf;
         try {
           gltf = await loader.loadAsync(objectFile);
         } catch (error) {
           console.error(`Failed to load object: ${error}`);
-          return; // Exit function if loading fails
+          return;
         }
-        const objectTemplate = gltf.scene.clone(); // Clone the loaded object
+
+        const objectTemplate = gltf.scene;
 
         for (let i = 1; i < width; i++) {
           positionsAndRotations.push({
             position: [startX + i * spacing, 0.75, startZ],
-            rotation: { x: 0, y: 90, z: 0 },
+            rotation: { x: 0, y: Math.PI / 2, z: 0 },
           });
         }
         for (let i = 0; i < width - 1; i++) {
@@ -257,13 +261,13 @@
               0.75,
               startZ + (height - 1) * spacing,
             ],
-            rotation: { x: 0, y: 270, z: 0 },
+            rotation: { x: 0, y: (3 * Math.PI) / 2, z: 0 },
           });
         }
         for (let i = 0; i < height - 1; i++) {
           positionsAndRotations.push({
             position: [startX, 0.75, startZ + i * spacing],
-            rotation: { x: 0, y: 180, z: 0 },
+            rotation: { x: 0, y: Math.PI, z: 0 },
           });
         }
         for (let i = 1; i < height; i++) {
@@ -276,27 +280,26 @@
             rotation: { x: 0, y: 0, z: 0 },
           });
         }
-        const listOfWalls = [];
-        for (const { position, rotation } of positionsAndRotations) {
-          const object = objectTemplate.clone(); // Clone the object for each wall
+
+        const group = new THREE.Group();
+
+        positionsAndRotations.forEach(({ position, rotation }) => {
+          const object = objectTemplate.clone(true);
           object.position.set(...position);
           object.scale.set(1, 1, 1);
+          object.rotation.set(rotation.x, rotation.y, rotation.z);
           object.traverse(function (node) {
             if (node.isMesh) {
               node.receiveShadow = true;
               node.castShadow = true;
             }
           });
-          if (rotation) {
-            object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
-            object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
-            object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
-          }
-          listOfWalls.push(object);
-        }
-        listOfWalls.forEach((low) => {
-          scene.add(low);
-          addObjectToCheck(low, objectFile);
+          group.add(object);
+        });
+
+        scene.add(group);
+        group.children.forEach((object) => {
+          addObjectToCheck(object, objectFile);
         });
       }
       async function makeWheats(objectFile, startX, startZ, w, h) {
@@ -370,49 +373,74 @@
         }
       }
 
-      function createPond(x, y, z, scale, rotation) {
-        const pondBaseGeometry = new THREE.ShapeGeometry(pondShape);
-        const pondBaseMaterial = new THREE.MeshStandardMaterial({
-          color: 0x8b4513,
-        });
-        const pondBase = new THREE.Mesh(pondBaseGeometry, pondBaseMaterial);
+      const pondBaseMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b4513,
+      });
+      const waterMaterial = new THREE.MeshStandardMaterial({
+        color: 0x0066ff,
+        transparent: true,
+        opacity: 0.6,
+      });
+      const objectLoader = new THREE.GLTFLoader();
+
+      function createPond(x, y, z, scale) {
+        // Reuse the pond shape geometry if it's already created
+        if (!window.pondShapeGeometry) {
+          window.pondShapeGeometry = new THREE.ShapeGeometry(pondShape);
+        }
+
+        const pondBase = new THREE.Mesh(
+          window.pondShapeGeometry,
+          pondBaseMaterial
+        );
         pondBase.rotation.x = -Math.PI / 2;
         pondBase.receiveShadow = true;
         pondBase.position.set(x, y, z);
         pondBase.scale.set(scale, scale, scale);
         scene.add(pondBase);
 
-        const waterGeometry = new THREE.ShapeGeometry(pondShape);
-        const waterMaterial = new THREE.MeshStandardMaterial({
-          color: 0x0066ff,
-          transparent: true,
-          opacity: 0.6,
-        });
-
-        const water = new THREE.Mesh(waterGeometry, waterMaterial);
-
+        const water = new THREE.Mesh(window.pondShapeGeometry, waterMaterial);
         water.position.set(x, y + 0.05, z);
         water.rotation.x = -Math.PI / 2;
         water.receiveShadow = true;
         water.scale.set(scale - 0.05, scale - 0.05, scale - 0.05);
         scene.add(water);
-        loadObject("./textures/goose.glb", x + 1, 0.06, z - 5, 1);
-        loadObject(
-          "./textures/lotus_water_lily.glb",
-          x + 4,
-          y + 0.05,
-          z - 1,
-          0.1
-        );
 
-        loadObject("./textures/reeds.glb", x + 5, 0, z - 10, 30);
-        // loadObject("./textures/logs.glb", x + 5, 0, z - 10, 0.01, {
-        //   x: 0,
-        //   y: 0,
-        //   z: 0,
-        // });
-        loadObject("./textures/result/big_rock.glb", x + 10, 0, z - 11, 2);
-        loadObject("./textures/result/small_rock.glb", x + 10, 0, z - 7, 2);
+        loadPondObjects(x, y, z);
+      }
+
+      function loadPondObjects(x, y, z) {
+        const objectPaths = [
+          {
+            path: "./textures/goose.glb",
+            position: [x + 1, 0.06, z - 5],
+            scale: 1,
+          },
+          {
+            path: "./textures/lotus_water_lily.glb",
+            position: [x + 4, y + 0.05, z - 1],
+            scale: 0.1,
+          },
+          {
+            path: "./textures/reeds.glb",
+            position: [x + 5, 0, z - 10],
+            scale: 30,
+          },
+          {
+            path: "./textures/result/big_rock.glb",
+            position: [x + 10, 0, z - 11],
+            scale: 2,
+          },
+          {
+            path: "./textures/result/small_rock.glb",
+            position: [x + 10, 0, z - 7],
+            scale: 2,
+          },
+        ];
+
+        objectPaths.forEach(({ path, position, scale }) => {
+          loadObject(path, ...position, scale);
+        });
       }
 
       function init() {
@@ -753,6 +781,38 @@
         window.addEventListener("keyup", onKeyUp, false);
       }
 
+      // const MAX_HAY_BALES = 100; // Set the maximum number of hay bales in the pool
+      // const hayBalePool = [];
+
+      // // Create the initial pool of hay bales
+      // for (let i = 0; i < MAX_HAY_BALES; i++) {
+      //   const haybale = createHayBale();
+      //   haybale.isActive = false; // Initially, all hay bales are inactive
+      //   hayBalePool.push(haybale);
+      // }
+
+      // function createHayBale() {
+      //   const haybale = new THREE.Object3D();
+      //   // Load the hay bale model and add it as a child of the haybale object
+      //   loadObject(
+      //     "./textures/hay_bale_free.glb",
+      //     0,
+      //     0,
+      //     0,
+      //     0.005,
+      //     {
+      //       rotation: {
+      //         x: 90,
+      //         y: 0,
+      //         z: 0,
+      //       },
+      //     },
+      //     null, // No callback needed
+      //     false, // Not a callback
+      //     haybale // Add the model as a child of the haybale object
+      //   );
+      //   return haybale;
+      // }
       function wheatCollision() {
         var harvester = objects.find((o) => o.sName.includes("harvester"));
         const harvesterPosition = harvester.position;
@@ -798,7 +858,6 @@
           wheatDestroyed = 0; // Reset the counter
         }
       }
-
       function wheatPickup(haybale) {
         haybale.pickedUp = false;
         const haybalePickedUpScale = 0.0075;
@@ -872,6 +931,80 @@
           }
         };
       }
+
+      // function wheatPickup(haybale) {
+      //   haybale.pickedUp = false;
+      //   const haybalePickedUpScale = 0.0075;
+      //   const maxHaybales = 2;
+      //   const pickupDistance = 5;
+      //   const dropoffDistanceLimit = 4;
+
+      //   return () => {
+      //     const truck = objects.find((o) => o.sName.includes("low_poly_truck"));
+      //     if (interactibleObject == truck) {
+      //       const distance = interactibleObject.position.distanceTo(
+      //         haybale.position
+      //       );
+      //       const dropoffDistance = interactibleObject.position.distanceTo(
+      //         wheatPlacementBox.position
+      //       );
+
+      //       if (
+      //         distance < pickupDistance &&
+      //         !haybale.pickedUp &&
+      //         pickedUpHaybales.length < maxHaybales
+      //       ) {
+      //         haybale.pickedUp = true;
+      //         pickedUpHaybales.push(haybale);
+      //         truck.add(haybale);
+      //         haybale.scale.set(
+      //           haybalePickedUpScale,
+      //           haybalePickedUpScale,
+      //           haybalePickedUpScale
+      //         );
+      //         for (let i = 0; i < pickedUpHaybales.length; i++) {
+      //           const current = pickedUpHaybales[i];
+      //           current.position.set(
+      //             0,
+      //             Math.floor(i / 2 + 1) * 2,
+      //             ((i % 2) + 1) * -2.3 - 0.725
+      //           );
+      //           current.rotation.set(
+      //             THREE.MathUtils.degToRad(0),
+      //             THREE.MathUtils.degToRad(0),
+      //             THREE.MathUtils.degToRad(90)
+      //           );
+      //         }
+      //       } else if (dropoffDistance < dropoffDistanceLimit) {
+      //         // console.log(pickedUpHaybales);
+      //         if (pickedUpHaybales.length >= 1) {
+      //           const current = pickedUpHaybales[0];
+      //           current.callbackCustom = () => {};
+      //           truck.remove(current);
+      //           scene.remove(current);
+      //           pickedUpHaybales.shift();
+      //           const prevLength = pickedUpHaybales.length;
+      //           placedInBarnHaybales.push(current);
+      //           console.log(placedInBarnHaybales);
+      //           for (let i = prevLength; i < placedInBarnHaybales.length; i++) {
+      //             const placeHaybale = placedInBarnHaybales[i];
+      //             placeHaybale.position.set(
+      //               -22.5,
+      //               1 + Math.floor(i / 6) * 2,
+      //               35 - (i % 6) * 2
+      //             );
+      //             placeHaybale.rotation.set(
+      //               THREE.MathUtils.degToRad(0),
+      //               THREE.MathUtils.degToRad(0),
+      //               THREE.MathUtils.degToRad(90)
+      //             );
+      //           }
+      //           scene.add(current);
+      //         }
+      //       }
+      //     }
+      //   };
+      // }
 
       function checkCollision() {
         var raycasters = [];
@@ -977,7 +1110,7 @@
       }
       function animate() {
         requestAnimationFrame(animate);
-        objects.forEach((o) => o.callbackCustom());
+        objects.forEach((o) => (o.callbackCustom ? o.callbackCustom() : ""));
         const doorKiri = objects.find((o) => o.sName.includes("BarnKiri"));
         const doorKanan = objects.find((o) => o.sName.includes("BarnKanan"));
         if (barnDoorOpenRotate) {
