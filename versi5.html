@@ -193,11 +193,71 @@
           const hasRotation = options.rotation !== undefined;
           const hasCenter = options.center !== undefined;
           const disableShadow = options.shadow === false;
-
           object.traverse((node) => {
             if (node.isMesh) {
               node.receiveShadow = !disableShadow;
               node.castShadow = !disableShadow;
+              //   const objectColor = node.material.color;
+
+              //   console.log(node, node.material.color);
+              //   const aoMapShader = {
+              //     uniforms: {
+              //       aoMapIntensity: { value: 1.0 },
+              //       uColor: { value: new THREE.Color() }, // Menggunakan warna dari material
+              //     },
+              //     vertexShader: `
+              //     varying vec3 vNormal;
+              //     varying vec3 vPosition;
+
+              //     void main() {
+              //         vNormal = normal;
+              //         vPosition = position;
+              //         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+              //     }
+              // `,
+              //     fragmentShader: `
+              //     varying vec3 vNormal;
+              //     varying vec3 vPosition;
+
+              //     uniform float aoMapIntensity;
+              //     uniform vec3 uColor; // Mengambil warna dari material
+
+              //     // Fungsi untuk menghitung ambient occlusion
+              //     float calculateAO(vec3 normal) {
+              //         // Ganti ini dengan perhitungan ambient occlusion yang sesuai
+              //         return 1.0 - pow(abs(dot(normal, vec3(0.0, 0.0, 1.0))), 4.0);
+              //     }
+
+              //     void main() {
+              //         // Menghitung normal dan kedalaman di fragment shader
+              //         vec3 normal = normalize(vNormal);
+              //         float depth = length(vPosition);
+
+              //         // Menghitung ambient occlusion
+              //         float ao = calculateAO(normal);
+
+              //         // Warna objek asli dari material
+              //         vec3 objectColor = uColor;
+
+              //         // Menghitung efek ambient occlusion pada warna asli objek
+              //         vec3 ambientOccludedColor = objectColor * (1.0 - ao * aoMapIntensity);
+
+              //         // Menghasilkan warna akhir dengan efek ambient occlusion
+              //         vec3 finalColor = mix(objectColor, ambientOccludedColor, ao);
+
+              //         gl_FragColor = vec4(finalColor, 1.0);
+              //     }
+              // `,
+              //   };
+              // aoMapShader.uniforms.uColor.value = objectColor;
+              // const aoMapMaterial = new THREE.ShaderMaterial({
+              //   uniforms: aoMapShader.uniforms,
+              //   vertexShader: aoMapShader.vertexShader,
+              //   fragmentShader: aoMapShader.fragmentShader,
+              // });
+              // if (node.material.color) {
+              //   node.material = aoMapMaterial;
+              // }
             }
           });
 
@@ -413,33 +473,86 @@
         const objectPaths = [
           {
             path: "./textures/goose.glb",
-            position: [x + 1, 0.06, z - 5],
+            position: [x + 4, 0.06, z - 5],
             scale: 1,
           },
           {
-            path: "./textures/lotus_water_lily.glb",
-            position: [x + 4, y + 0.05, z - 1],
-            scale: 0.1,
+            path: "./textures/lotus.glb",
+            position: [x + 4, y + 0.13, z - 1],
+            scale: 2,
           },
           {
-            path: "./textures/reeds.glb",
-            position: [x + 5, 0, z - 10],
-            scale: 30,
+            path: "./textures/lilypad1.glb",
+            position: [x + 0.5, y + 0.1, z - 3],
+            scale: 0.6,
+          },
+          {
+            path: "./textures/lilypad2.glb",
+            position: [x + 7, y + 0.1, z - 4],
+            scale: 0.8,
+          },
+          {
+            path: "./textures/lilypad3.glb",
+            position: [x + 4, y + 0.1, z - 1.8],
+            scale: 0.7,
+            rotation: { x: 0, y: 20, z: 0 },
+          },
+          {
+            path: "./textures/cattail.glb",
+            position: [x + 9, -0.1, z - 9],
+            scale: 0.02,
+            rotation: { x: 0, y: 315, z: 0 },
+          },
+          {
+            path: "./textures/cattail.glb",
+            position: [x + 4, -0.1, z + 3],
+            scale: 0.02,
+            rotation: { x: 0, y: 200, z: 0 },
+          },
+          {
+            path: "./textures/cattail.glb",
+            position: [x + 4, -0.1, z + 3],
+            scale: 0.02,
+            rotation: { x: 0, y: 90, z: 0 },
+          },
+          {
+            path: "./textures/cattail.glb",
+            position: [x + 4, -0.1, z + 2],
+            scale: 0.02,
+            rotation: { x: 0, y: 30, z: 0 },
+          },
+          {
+            path: "./textures/cattail.glb",
+            position: [x + 5, -0.1, z + 1],
+            scale: 0.02,
+            rotation: { x: 0, y: 330, z: 0 },
+          },
+          {
+            path: "./textures/cattail.glb",
+            position: [x + 5, -0.1, z + 2],
+            scale: 0.02,
+            rotation: { x: 0, y: 315, z: 0 },
+          },
+          {
+            path: "./textures/cattail.glb",
+            position: [x + 4, -0.1, z + 1],
+            scale: 0.02,
+            rotation: { x: 0, y: 45, z: 0 },
           },
           {
             path: "./textures/result/big_rock.glb",
             position: [x + 10, 0, z - 11],
-            scale: 2,
+            scale: 1,
           },
           {
             path: "./textures/result/small_rock.glb",
-            position: [x + 10, 0, z - 7],
-            scale: 2,
+            position: [x + 10.5, 0, z - 9],
+            scale: 1,
           },
         ];
 
-        objectPaths.forEach(({ path, position, scale }) => {
-          loadObject(path, ...position, scale);
+        objectPaths.forEach(({ path, position, scale, rotation = {} }) => {
+          loadObject(path, ...position, scale, { rotation: rotation });
         });
       }
 
@@ -522,8 +635,9 @@
         });
         loadObject("./textures/moon2.glb", 10, 0, 10, 3, { shadow: false });
         // loadObject("./textures/result/shovel.glb", 15, 0, 10, 1);
-        loadObject("./textures/cart.glb", 15, 0, 10, 0.2);
-        loadObject("./textures/result/hammer.glb", 20, 0, 10, 1);
+        loadObject("./textures/cart.glb", 30, 0, 0, 0.2);
+        loadObject("./textures/Pohon_2.glb", 30, 0, -3, 1);
+        // loadObject("./textures/result/hammer.glb", 20, 0, 10, 1);
         loadObject("./textures/result/barrel.glb", 25, 0, 10, 1);
         loadObject("./textures/result/big_haybale.glb", 35, 0, 10, 1);
         loadObject("./textures/result/small_haybale.glb", 35, 0, 20, 1);
@@ -902,7 +1016,6 @@
                 );
               }
             } else if (dropoffDistance < dropoffDistanceLimit) {
-              // console.log(pickedUpHaybales);
               if (pickedUpHaybales.length >= 1) {
                 const current = pickedUpHaybales[0];
                 current.callbackCustom = () => {};
@@ -911,7 +1024,6 @@
                 pickedUpHaybales.shift();
                 const prevLength = pickedUpHaybales.length;
                 placedInBarnHaybales.push(current);
-                console.log(placedInBarnHaybales);
                 for (let i = prevLength; i < placedInBarnHaybales.length; i++) {
                   const placeHaybale = placedInBarnHaybales[i];
                   placeHaybale.position.set(
