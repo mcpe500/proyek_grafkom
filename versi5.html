@@ -26,11 +26,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three-mesh-bvh/dist/three-mesh-bvh.min.js"></script>
-    <script src="./library/threejs-octree/dist/bundle.js"></script>
-    <script src="./library/threejs-mesh-bvh/dist/index.umd.cjs"></script>
+    <!-- <script src="./library/threejs-octree/dist/bundle.js"></script> -->
     <script>
-      var scene, renderer, controls, camera;
+      var scene, renderer, controls, cameravar, ssrPass;
       var moveForward = false;
       var moveBackward = false;
       var moveLeft = false;
@@ -64,13 +62,10 @@
         opacity: 0.0,
         transparent: true,
       });
-      var wheatPlacementBox = new THREE.InstancedMesh(
+      var wheatPlacementBox = new THREE.Mesh(
         wheatPlacementGeometry,
-        wheatPlacementMesh,
-        1 // instance count
+        wheatPlacementMesh
       );
-      wheatPlacementBox.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // for updating position
-
       wheatPlacementBox.position.set(4, 2, 30);
 
       var harvesterMode = false;
@@ -86,6 +81,13 @@
       var harvesterPosition = new THREE.Vector3();
       var previousHarvesterPosition = new THREE.Vector3();
       let wheatDestroyed = 0;
+
+      const pondShape = new THREE.Shape();
+      pondShape.moveTo(0, 10);
+      pondShape.quadraticCurveTo(10, 12, 10, 10);
+      pondShape.quadraticCurveTo(12, 15, 10, 0);
+      pondShape.quadraticCurveTo(5, -10, 0, 0);
+      pondShape.quadraticCurveTo(-5, 5, 0, 10);
 
       var sunAngle = 0;
       var maxSunAngle = Math.PI;
@@ -182,20 +184,8 @@
       ) {
         loader.load(objectFile, function (gltf) {
           var object = gltf.scene;
-          var lod = new THREE.LOD();
-
           object.position.set(x, y, z);
           object.scale.set(scale, scale, scale);
-          lod.addLevel(object, 0);
-
-          // Add simplified version of the model for distant view
-          var simplifiedObject = object.clone();
-          // Apply simplification here
-          lod.addLevel(simplifiedObject, 80);
-
-          lod.updateMatrix();
-          lod.matrixAutoUpdate = false;
-
           object.traverse(function (node) {
             if (node.isMesh) {
               node.receiveShadow = true;
@@ -222,8 +212,7 @@
               });
             }
           }
-          // scene.add(object);
-          scene.add(lod);
+          scene.add(object);
           if (isCallback == true) {
             addObjectToCheck(object, objectFile, callback(object));
           } else {
@@ -239,6 +228,7 @@
         object.rotation.y += degToRad(y);
         object.rotation.z += degToRad(z);
       }
+
       async function makeWalls(objectFile, startX, startZ, w, h) {
         const width = w + 1;
         const height = h + 1;
@@ -380,9 +370,55 @@
         }
       }
 
+      function createPond(x, y, z, scale, rotation) {
+        const pondBaseGeometry = new THREE.ShapeGeometry(pondShape);
+        const pondBaseMaterial = new THREE.MeshStandardMaterial({
+          color: 0x8b4513,
+        });
+        const pondBase = new THREE.Mesh(pondBaseGeometry, pondBaseMaterial);
+        pondBase.rotation.x = -Math.PI / 2;
+        pondBase.receiveShadow = true;
+        pondBase.position.set(x, y, z);
+        pondBase.scale.set(scale, scale, scale);
+        scene.add(pondBase);
+
+        const waterGeometry = new THREE.ShapeGeometry(pondShape);
+        const waterMaterial = new THREE.MeshStandardMaterial({
+          color: 0x0066ff,
+          transparent: true,
+          opacity: 0.6,
+        });
+
+        const water = new THREE.Mesh(waterGeometry, waterMaterial);
+
+        water.position.set(x, y + 0.05, z);
+        water.rotation.x = -Math.PI / 2;
+        water.receiveShadow = true;
+        water.scale.set(scale - 0.05, scale - 0.05, scale - 0.05);
+        scene.add(water);
+        loadObject("./textures/goose.glb", x + 1, 0.06, z - 5, 1);
+        loadObject(
+          "./textures/lotus_water_lily.glb",
+          x + 4,
+          y + 0.05,
+          z - 1,
+          0.1
+        );
+
+        loadObject("./textures/reeds.glb", x + 5, 0, z - 10, 30);
+        // loadObject("./textures/logs.glb", x + 5, 0, z - 10, 0.01, {
+        //   x: 0,
+        //   y: 0,
+        //   z: 0,
+        // });
+        loadObject("./textures/result/big_rock.glb", x + 10, 0, z - 11, 2);
+        loadObject("./textures/result/small_rock.glb", x + 10, 0, z - 7, 2);
+      }
+
       function init() {
         scene = new THREE.Scene();
-        renderer = new THREE.WebGLRenderer();
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
@@ -399,7 +435,6 @@
         sunLight.shadow.camera.right += shadowSize;
         sunLight.add(lensflare);
         scene.add(sunLight);
-        // scene.add(new THREE.CameraHelper(sunLight.shadow.camera));
 
         moonLight.castShadow = true;
         moonLight.shadow.mapSize.width = 2048;
@@ -413,7 +448,6 @@
         scene.add(spotlight);
         scene.add(targetObject);
 
-        // scene.add(new THREE.CameraHelper(moonLight.shadow.camera));
         scene.add(wheatPlacementBox);
 
         const windmill_location = { x: -20, y: 0, z: -16 };
@@ -442,6 +476,8 @@
           }
         );
 
+        createPond(22, 0.01, -10, 1);
+
         makeWalls("./textures/wooden_fence.glb", -28, -24, 13, 13);
         makeWheats("./textures/result/Wheat2.glb", -25, -9, 30, 30);
         loadObject("./textures/result/newBarn_Home.glb", -10, 0, 30, 3, {
@@ -457,14 +493,13 @@
           rotation: { x: 0, y: 90, z: 0 },
         });
         loadObject("./textures/moon2.glb", 10, 0, 10, 3, { shadow: false });
-        loadObject("./textures/result/shovel.glb", 15, 0, 10, 1);
+        // loadObject("./textures/result/shovel.glb", 15, 0, 10, 1);
+        loadObject("./textures/cart.glb", 15, 0, 10, 0.2);
         loadObject("./textures/result/hammer.glb", 20, 0, 10, 1);
         loadObject("./textures/result/barrel.glb", 25, 0, 10, 1);
-        loadObject("./textures/result/big_rock.glb", 30, 0, 10, 1);
         loadObject("./textures/result/big_haybale.glb", 35, 0, 10, 1);
-        // loadObject("./textures/result/sign.glb", 35, 0, 15, 1);
         loadObject("./textures/result/small_haybale.glb", 35, 0, 20, 1);
-        loadObject("./textures/result/small_rock.glb", 35, 0, 25, 1);
+        loadObject("./textures/result/small_haybale.glb", 35, 0, 20, 1);
         loadObject("./textures/result/hollow_box.glb", 35, 0, 30, 1);
         loadObject(
           "./textures/result/hollow_box_top_panjang.glb",
@@ -484,16 +519,14 @@
           1
         );
         loadObject("./textures/result/crate_full_walled.glb", 30, 0, 30, 1);
-        // loadObject("./textures/result/crate_original.glb", 25, 0, 30, 1);
-        // loadObject("./textures/result/hay_stack.glb", 30, 0, 25, 1);
         loadObject(
           "./textures/original/low_poly_truck.glb",
-          30,
+          0,
           1.15,
-          35,
+          -18,
           0.5,
           {
-            rotation: { x: 0, y: 270, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
           }
         );
 
@@ -545,7 +578,9 @@
         cloudGroup.add(ambientLight);
 
         var floorGeometry = new THREE.PlaneGeometry(250, 250);
-        var floorMaterial = new THREE.MeshStandardMaterial({ color: 0x527e1c });
+        var floorMaterial = new THREE.MeshStandardMaterial({
+          color: 0x527e1c,
+        });
         var floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.receiveShadow = true;
         floor.rotation.x = -Math.PI / 2;
@@ -964,6 +999,12 @@
           o.sName.includes("baling_baling_windmill")
         );
         rotate(baling_baling_windmill, { x: 1, y: 0, z: 0 });
+
+        var lotus = objects.find((o) => o.sName.includes("lotus"));
+        rotate(lotus, { x: 0, y: 0.15, z: 0 });
+
+        var goose = objects.find((o) => o.sName.includes("goose"));
+        // rotate(goose, { x: goose.position.x + 1, y: 0, z: 0 });
 
         if (sunAngle < maxSunAngle) {
           sunAngle += 0.001;
