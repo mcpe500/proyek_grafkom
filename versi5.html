@@ -92,6 +92,19 @@
       pondShape.quadraticCurveTo(5, -10, 0, 0);
       pondShape.quadraticCurveTo(-5, 5, 0, 10);
 
+      const pointLight = new THREE.PointLight(0xffffff, 0.5, 100);
+      pointLight.position.set(-10, 14, 30);
+      pointLight.castShadow = true;
+      pointLight.shadow.mapSize.width = 1024;
+      pointLight.shadow.mapSize.height = 1024;
+      pointLight.shadow.radius = 5;
+      pointLight.shadow.camera.near = 0.5;
+      pointLight.shadow.camera.far = 30;
+
+      const cylinderMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+      const cylinderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.2, 32);
+      const cylinderMesh = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
+
       var sunAngle = 0;
       var maxSunAngle = Math.PI;
       var sunLightColor = 0xffffcc;
@@ -440,8 +453,10 @@
         color: 0x0066ff,
         transparent: true,
         opacity: 0.6,
+        metalness: 0.1, // Menambahkan sedikit efek refleksi
+        roughness: 0.5, // Mengurangi kekasaran untuk meningkatkan efek refleksi
+        refractionRatio: 0.98, // Menambahkan efek refraksi
       });
-      const objectLoader = new THREE.GLTFLoader();
 
       function createPond(x, y, z, scale) {
         // Reuse the pond shape geometry if it's already created
@@ -565,6 +580,13 @@
         document.body.appendChild(renderer.domElement);
         renderer.setSize(window.innerWidth, window.innerHeight);
 
+        scene.add(pointLight);
+        cylinderMesh.position.copy(pointLight.position);
+        cylinderMesh.lookAt(
+          new THREE.Vector3().copy(pointLight.position).add(pointLight.position)
+        );
+        scene.add(cylinderMesh);
+
         scene.add(hemisphereDay);
 
         sunLight.castShadow = true;
@@ -619,7 +641,7 @@
 
         createPond(22, 0.01, -10, 1);
 
-        makeWalls("./textures/wooden_fence.glb", -28, -24, 13, 13);
+        makeWalls("./textures/wooden_fence.glb", -28, -24, 10, 10);
         makeWheats("./textures/result/Wheat2.glb", -25, -9, 30, 30);
         loadObject("./textures/result/newBarn_Home.glb", -10, 0, 30, 3, {
           rotation: { x: 0, y: 270, z: 0 },
@@ -671,6 +693,17 @@
             rotation: { x: 0, y: 0, z: 0 },
           }
         );
+
+        loadObject("./textures/Pohon_2.glb", 30, 0, 34, 1, {
+          x: 0,
+          y: 180,
+          z: 0,
+        });
+        // loadObject("./textures/topless_crate.glb", 30, 0, 34, 1, {
+        //   x: 0,
+        //   y: 0,
+        //   z: 0,
+        // });
 
         loadObject(
           "./textures/result/harvester_noleh_kiri.glb",
