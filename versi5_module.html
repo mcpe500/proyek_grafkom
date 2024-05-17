@@ -31,29 +31,30 @@
 
   <body>
     <!-- <script
-      async
-      src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"
-      type="module"
-    ></script>
-    <script
-      src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"
-      type="module"
-    ></script>
-    <script
-      src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"
-      type="module"
-    ></script>
-    <script
-      src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"
-      type="module"
-    ></script>
-    <script
-      src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"
-      type="module"
-    ></script> -->
+async
+src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"
+type="module"
+></script>
+<script
+src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"
+type="module"
+></script>
+<script
+src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"
+type="module"
+></script>
+<script
+src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"
+type="module"
+></script>
+<script
+src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"
+type="module"
+></script> -->
     <script type="module">
       import * as THREE from "three";
       import { Octree } from "three/addons/math/Octree.js";
+      import { Capsule } from "three/addons/math/Capsule.js";
       import {
         Lensflare,
         LensflareElement,
@@ -62,8 +63,9 @@
       import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
       const worldOctree = new Octree();
-      console.log(Octree);
+
       const boundingBox = [];
+      var meshes = [];
 
       const geometry = new THREE.BoxGeometry();
       const material = new THREE.MeshBasicMaterial({
@@ -82,39 +84,11 @@
         object.scale.set(...scale);
         object.rotation.set(...rotation.map((deg) => (deg * Math.PI) / 180));
       }
-      function createBoundingBox(
-        scene,
-        position,
-        scale,
-        rotation,
-        octree,
-        boundingBox,
-        interactibles
-      ) {
-        const cube = new THREE.Mesh(geometry, material);
-        setPositionScaleRotation(cube, position, scale, rotation);
-        octree.fromGraphNode(cube);
-        scene.add(cube);
-
-        const edges = new THREE.EdgesGeometry(cube.geometry);
-        const line = new THREE.LineSegments(edges, lineMaterial);
-        line.position.copy(cube.position);
-        line.scale.copy(cube.scale);
-        line.rotation.copy(cube.rotation);
-        scene.add(line);
-
-        boundingBox.push({
-          cube: cube,
-          line: line,
-        });
-
-        if (interactibles) {
-          interactibles.boundingBox = {
-            cube: cube,
-            line: line,
-          };
-        }
-      }
+      const playerCollider = new Capsule(
+        new THREE.Vector3(0, 0.05, 0),
+        new THREE.Vector3(0, 10, 0),
+        0.35
+      );
       var camera;
       var scene, renderer, controls, cameravar, ssrPass;
       var moveForward = false;
@@ -235,6 +209,7 @@
       }
 
       function switchToharvesterMode() {
+        playerCollider.radius = 1;
         spotlight.intensity = 1;
         firstPersonCameraPosition.copy(camera.position);
         firstPersonCameraRotation.copy(camera.rotation);
@@ -281,10 +256,12 @@
           const disableShadow = options.shadow === false;
 
           // Create a BoxHelper for the mesh and add it to the scene
+          const mesheNode = [];
           object.traverse((node) => {
             if (node.isMesh) {
               node.receiveShadow = !disableShadow;
               node.castShadow = !disableShadow;
+              mesheNode.push(node);
             }
           });
 
@@ -313,14 +290,17 @@
           }
           if (options.isCheckObject == false) {
           } else if (options.isCheckObject == true) {
+            meshes.push(...mesheNode);
             addObjectToCheck(object, objectFile, finalCallback);
           } else if (
             options.isCheckObject == undefined ||
             options.isCheckObject == null
           ) {
+            meshes.push(...mesheNode);
             addObjectToCheck(object, objectFile, finalCallback);
           } else {
           }
+          worldOctree.fromGraphNode(object);
           // addObjectToCheck(object, objectFile, finalCallback);
         });
       }
@@ -632,15 +612,6 @@
 
         scene.add(wheatPlacementBox);
 
-        createBoundingBox(
-          scene,
-          [-10.13, 0.5, -40.15],
-          [7, 4.6, 2.9],
-          [0, 0, 0],
-          worldOctree,
-          boundingBox
-        );
-
         const windmill_location = { x: -20, y: 0, z: -16 };
         loadObject(
           "./textures/result/kaki_windmill.glb",
@@ -839,9 +810,9 @@
             interactibleObject = camera;
             truckMode = false;
             switchToFirstPersonMode();
-            camera.position.x = truck.position.x + 2;
-            camera.position.y = 5;
-            camera.position.z = truck.position.z + 2;
+            camera.position.x = truck.position.x;
+            camera.position.y = 7;
+            camera.position.z = truck.position.z;
           }
         }
         function toggleBarnDoor() {
@@ -892,7 +863,7 @@
             case 70: // F buat buka Barn Door
               toggleBarnDoor();
               break;
-            case 81: // Q  lampu mobil
+            case 81: // Qlampu mobil
               if (harvesterMode || truckMode) {
                 if (spotlight.intensity == 0) {
                   spotlight.intensity = 1;
@@ -950,32 +921,32 @@
 
       // // Create the initial pool of hay bales
       // for (let i = 0; i < MAX_HAY_BALES; i++) {
-      //   const haybale = createHayBale();
-      //   haybale.isActive = false; // Initially, all hay bales are inactive
-      //   hayBalePool.push(haybale);
+      // const haybale = createHayBale();
+      // haybale.isActive = false; // Initially, all hay bales are inactive
+      // hayBalePool.push(haybale);
       // }
 
       // function createHayBale() {
-      //   const haybale = new THREE.Object3D();
-      //   // Load the hay bale model and add it as a child of the haybale object
-      //   loadObject(
-      //     "./textures/hay_bale_free.glb",
-      //     0,
-      //     0,
-      //     0,
-      //     0.005,
-      //     {
-      //       rotation: {
-      //         x: 90,
-      //         y: 0,
-      //         z: 0,
-      //       },
-      //     },
-      //     null, // No callback needed
-      //     false, // Not a callback
-      //     haybale // Add the model as a child of the haybale object
-      //   );
-      //   return haybale;
+      // const haybale = new THREE.Object3D();
+      // // Load the hay bale model and add it as a child of the haybale object
+      // loadObject(
+      // "./textures/hay_bale_free.glb",
+      // 0,
+      // 0,
+      // 0,
+      // 0.005,
+      // {
+      // rotation: {
+      // x: 90,
+      // y: 0,
+      // z: 0,
+      // },
+      // },
+      // null, // No callback needed
+      // false, // Not a callback
+      // haybale // Add the model as a child of the haybale object
+      // );
+      // return haybale;
       // }
       function wheatCollision() {
         var harvester = objects.find((o) => o.sName.includes("harvester"));
@@ -1095,171 +1066,69 @@
         };
       }
 
-      // function wheatPickup(haybale) {
-      //   haybale.pickedUp = false;
-      //   const haybalePickedUpScale = 0.0075;
-      //   const maxHaybales = 2;
-      //   const pickupDistance = 5;
-      //   const dropoffDistanceLimit = 4;
-
-      //   return () => {
-      //     const truck = objects.find((o) => o.sName.includes("low_poly_truck"));
-      //     if (interactibleObject == truck) {
-      //       const distance = interactibleObject.position.distanceTo(
-      //         haybale.position
-      //       );
-      //       const dropoffDistance = interactibleObject.position.distanceTo(
-      //         wheatPlacementBox.position
-      //       );
-
-      //       if (
-      //         distance < pickupDistance &&
-      //         !haybale.pickedUp &&
-      //         pickedUpHaybales.length < maxHaybales
-      //       ) {
-      //         haybale.pickedUp = true;
-      //         pickedUpHaybales.push(haybale);
-      //         truck.add(haybale);
-      //         haybale.scale.set(
-      //           haybalePickedUpScale,
-      //           haybalePickedUpScale,
-      //           haybalePickedUpScale
-      //         );
-      //         for (let i = 0; i < pickedUpHaybales.length; i++) {
-      //           const current = pickedUpHaybales[i];
-      //           current.position.set(
-      //             0,
-      //             Math.floor(i / 2 + 1) * 2,
-      //             ((i % 2) + 1) * -2.3 - 0.725
-      //           );
-      //           current.rotation.set(
-      //             THREE.MathUtils.degToRad(0),
-      //             THREE.MathUtils.degToRad(0),
-      //             THREE.MathUtils.degToRad(90)
-      //           );
-      //         }
-      //       } else if (dropoffDistance < dropoffDistanceLimit) {
-      //         // console.log(pickedUpHaybales);
-      //         if (pickedUpHaybales.length >= 1) {
-      //           const current = pickedUpHaybales[0];
-      //           current.callbackCustom = () => {};
-      //           truck.remove(current);
-      //           scene.remove(current);
-      //           pickedUpHaybales.shift();
-      //           const prevLength = pickedUpHaybales.length;
-      //           placedInBarnHaybales.push(current);
-      //           console.log(placedInBarnHaybales);
-      //           for (let i = prevLength; i < placedInBarnHaybales.length; i++) {
-      //             const placeHaybale = placedInBarnHaybales[i];
-      //             placeHaybale.position.set(
-      //               -22.5,
-      //               1 + Math.floor(i / 6) * 2,
-      //               35 - (i % 6) * 2
-      //             );
-      //             placeHaybale.rotation.set(
-      //               THREE.MathUtils.degToRad(0),
-      //               THREE.MathUtils.degToRad(0),
-      //               THREE.MathUtils.degToRad(90)
-      //             );
-      //           }
-      //           scene.add(current);
-      //         }
-      //       }
-      //     }
-      //   };
-      // }
-
       function checkCollision() {
-        const directions = [
-          new THREE.Vector3(0, 0, -1), // forward
-          new THREE.Vector3(0, 0, 1), // backward
-          new THREE.Vector3(-1, 0, 0), // left
-          new THREE.Vector3(1, 0, 0), // right
-          new THREE.Vector3(-1, 0, -1), // forward left
-          new THREE.Vector3(1, 0, -1), // forward right
-          new THREE.Vector3(-1, 0, 1), // backward left
-          new THREE.Vector3(1, 0, 1), // backward right
-        ];
+        // how to make the playerCollider move to the interactibelObject position.
+        // playerCollider.start.set(
+        //   interactibleObject.position.x - 1,
+        //   interactibleObject.position.y,
+        //   interactibleObject.position.z - 1
+        // );
+        // playerCollider.end.set(
+        //   interactibleObject.position.x + 1,
+        //   interactibleObject.position.y + 10, // Assuming the height of the capsule is 10
+        //   interactibleObject.position.z + 1
+        // );
 
-        const raycasters = directions.map(
-          (direction) =>
-            new THREE.Raycaster(interactibleObject.position, direction)
-        );
-
-        let intersected = false;
-        raycasters.forEach((raycaster) => {
-          const intersects = raycaster.intersectObjects(objects, true);
-          if (intersects.length > 0 && intersects[0].distance < 1) {
-            intersected = true;
-          }
-        });
-
-        // Perform octree collision detection
-        const octreeObjects = worldOctree.search(interactibleObject.position, true);
-        const octreeResult = octreeObjects.filter(
-          (obj) => obj !== interactibleObject
-        );
-
-        // If there are any intersections from either the raycasters or the octree, reset the object's position
-        if (intersected || octreeResult.length > 0) {
-          interactibleObject.position.copy(previousPosition);
-        } else {
-          previousPosition.copy(interactibleObject.position);
-        }
-      }
-
-      // function updateHarvesterBox() {
-      //   var harvester = objects.find((o) => o.sName.includes("harvester"));
-
-      //   var harvesterBox = new THREE.Box3().setFromObject(harvester);
-      //   var previousHarvesterPosition = new THREE.Vector3();
-      //   previousHarvesterPosition.copy(harvester.position);
-      //   var box = new THREE.Box3().setFromObject(harvester);
-      //   var center = new THREE.Vector3();
-      //   var size = new THREE.Vector3();
-
-      //   box.getCenter(center);
-      //   box.getSize(size);
-
-      //   var matrix = new THREE.Matrix4();
-      //   matrix.compose(
-      //     center,
-      //     harvester.quaternion,
-      //     new THREE.Vector3(1, 1, 1)
-      //   );
-
-      //   harvesterBox.setFromCenterAndSize(center, size);
-      //   harvesterBox.applyMatrix4(matrix);
-      // }
-      function harvesterCollision() {
-        // var harvester = objects.find((o) => o.sName.includes("harvester"));
-        // var intersected = false;
-        // var harvesterBox = new THREE.Box3().setFromObject(harvester);
-        // var previousHarvesterPosition = {
-        //   x: harvester.position.x,
-        //   y: harvester.position.y,
-        //   z: harvester.position.z,
-        // };
-        // // var previousHarvesterPosition = new THREE.Vector3();
-        // // previousHarvesterPosition.copy(harvester.position);
-        // // Update bounding box harvester
-        // // updateHarvesterBox();
-        // // Periksa tabrakan dengan semua objek lain
-        // objects.forEach(function (object) {
-        //   // var objectBox = new THREE.Box3().setFromObject(object);
-        //   // if (harvesterBox.intersectsBox(objectBox)) {
-        //   //   intersected = true;
-        //   // }
-        // });
-        // if (intersected) {
-        //   harvester.position.copy(previousHarvesterPosition);
-        // } else {
-        //   previousHarvesterPosition.copy(harvester.position);
+        // const result = worldOctree.capsuleIntersect(playerCollider);
+        // if (result) {
+        //   console.log("COLLIDED");
         // }
+        // return result;
+        function raycastercoll() {
+          var c = interactibleObject.position;
+          var rc1 = new THREE.Raycaster(
+            c,
+            new THREE.Vector3(1, 0, 0)
+          ).intersectObjects(meshes, false);
+          var rc2 = new THREE.Raycaster(
+            c,
+            new THREE.Vector3(0, 0, 1)
+          ).intersectObjects(meshes, false);
+          var rc3 = new THREE.Raycaster(
+            c,
+            new THREE.Vector3(-1, 0, 0)
+          ).intersectObjects(meshes, false);
+          var rc4 = new THREE.Raycaster(
+            c,
+            new THREE.Vector3(0, 0, -1)
+          ).intersectObjects(meshes, false);
+          var r1 = rc1.length > 0 ? rc1[0] : null;
+          var r2 = rc2.length > 0 ? rc2[0] : null;
+          var r3 = rc3.length > 0 ? rc3[0] : null;
+          var r4 = rc4.length > 0 ? rc4[0] : null;
+          var arr = [];
+          if (r1) arr.push(r1);
+          if (r2) arr.push(r2);
+          if (r3) arr.push(r3);
+          if (r4) arr.push(r4);
+
+          var rSorted = arr.sort((a, b) => {
+            return a.distance - b.distance;
+          });
+          console.log(rSorted);
+          if (rSorted.length > 0 && rSorted[0].distance < 1) {
+            var r = rSorted[0];
+            var d = new THREE.Vector3();
+            d.subVectors(c, r.point).normalize();
+            // console.log(r, d);
+            // camera.position.addScaledVector(d, 0.3);
+            interactibleObject.position.copy(previousPosition);
+          } else {
+            previousPosition.copy(interactibleObject.position);
+          }
+        }
+        raycastercoll();
       }
-      objects.forEach((object) => {
-        worldOctree.add(object, { useFaces: true });
-      });
 
       function animateJump() {
         currentTime = Date.now();
@@ -1274,6 +1143,9 @@
           isJumping = false;
         }
       }
+      // objects.forEach((object) => {
+      //   worldOctree.add(object, { useFaces: true });
+      // });
 
       function animate() {
         requestAnimationFrame(animate);
@@ -1435,10 +1307,27 @@
             clouds[i].position.z = Math.random() * 500 - 200;
           }
         }
-        checkCollision();
+        const newPosition = interactibleObject.position.clone();
+        const collisionResult = checkCollision();
+        // if (collisionResult) {
+        //   // Collision detected, update position based on previous position and move vector
+        //   const moveVector = new THREE.Vector3().subVectors(
+        //     newPosition,
+        //     previousPosition
+        //   );
+        //   const collisionPoint = collisionResult.normal
+        //     .clone()
+        //     .multiplyScalar(collisionResult.depth);
+        //   const adjustedPosition = newPosition.clone().sub(collisionPoint);
+        //   interactibleObject.position.copy(adjustedPosition);
+        // } else {
+        //   // No collision, update position normally
+        //   interactibleObject.position.copy(newPosition);
+        // }
+        // previousPosition.copy(interactibleObject.position);
+
         if (harvesterMode) {
           wheatCollision();
-          harvesterCollision();
           var harvester = objects.find((o) => o.sName.includes("harvester"));
           var harvesterSpeed = moveSpeed * 2;
           var rotationSpeed = 0.01;
@@ -1468,7 +1357,7 @@
           // Check for collision with the new position
           // const intersected = checkCollision(newPosition, harvester);
           // if (intersected) {
-          //   harvester.position.copy(newPosition);
+          // harvester.position.copy(newPosition);
           // }
 
           harvester.position.y = harvester_position.y;
@@ -1518,7 +1407,7 @@
           // const intersected = checkCollision(newPosition, truck);
 
           // if (intersected) {
-          //   truck.position.copy(newPosition);
+          // truck.position.copy(newPosition);
           // }
 
           truck.position.y = 1.15;
@@ -1576,7 +1465,7 @@
           // const intersected = checkCollision(newPosition, controls.getObject());
 
           // if (intersected) {
-          //   controls.getObject().position.copy(newPosition);
+          // controls.getObject().position.copy(newPosition);
           // }
         }
 
