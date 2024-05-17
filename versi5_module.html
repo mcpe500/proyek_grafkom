@@ -18,19 +18,104 @@
         cursor: none;
       }
     </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/",
+          "three/js/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/js/"
+        }
+      }
+    </script>
   </head>
 
   <body>
-    <script
+    <!-- <script
       async
       src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"
+      type="module"
     ></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"></script>
-    <!-- <script src="./library/threejs-octree/dist/bundle.js"></script> -->
-    <script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"
+      type="module"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"
+      type="module"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"
+      type="module"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"
+      type="module"
+    ></script> -->
+    <script type="module">
+      import * as THREE from "three";
+      import { Octree } from "three/addons/math/Octree.js";
+      import {
+        Lensflare,
+        LensflareElement,
+      } from "three/addons/objects/Lensflare.js";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+      import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
+
+      const worldOctree = new Octree();
+      console.log(Octree);
+      const boundingBox = [];
+
+      const geometry = new THREE.BoxGeometry();
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x808080,
+        transparent: false,
+        opacity: 100,
+      });
+      const lineMaterial = new THREE.LineBasicMaterial({
+        color: 0xffff00,
+        transparent: false,
+        opacity: 100,
+      });
+
+      function setPositionScaleRotation(object, position, scale, rotation) {
+        object.position.set(...position);
+        object.scale.set(...scale);
+        object.rotation.set(...rotation.map((deg) => (deg * Math.PI) / 180));
+      }
+      function createBoundingBox(
+        scene,
+        position,
+        scale,
+        rotation,
+        octree,
+        boundingBox,
+        interactibles
+      ) {
+        const cube = new THREE.Mesh(geometry, material);
+        setPositionScaleRotation(cube, position, scale, rotation);
+        octree.fromGraphNode(cube);
+        scene.add(cube);
+
+        const edges = new THREE.EdgesGeometry(cube.geometry);
+        const line = new THREE.LineSegments(edges, lineMaterial);
+        line.position.copy(cube.position);
+        line.scale.copy(cube.scale);
+        line.rotation.copy(cube.rotation);
+        scene.add(line);
+
+        boundingBox.push({
+          cube: cube,
+          line: line,
+        });
+
+        if (interactibles) {
+          interactibles.boundingBox = {
+            cube: cube,
+            line: line,
+          };
+        }
+      }
+      var camera;
       var scene, renderer, controls, cameravar, ssrPass;
       var moveForward = false;
       var moveBackward = false;
@@ -93,19 +178,6 @@
       pondShape.quadraticCurveTo(5, -10, 0, 0);
       pondShape.quadraticCurveTo(-5, 5, 0, 10);
 
-      const pointLight = new THREE.PointLight(0xffffff, 0.5, 100);
-      pointLight.position.set(-10, 14, 30);
-      pointLight.castShadow = true;
-      pointLight.shadow.mapSize.width = 1024;
-      pointLight.shadow.mapSize.height = 1024;
-      pointLight.shadow.radius = 5;
-      pointLight.shadow.camera.near = 0.5;
-      pointLight.shadow.camera.far = 30;
-
-      const cylinderMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-      const cylinderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.2, 32);
-      const cylinderMesh = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
-
       var sunAngle = 0;
       var maxSunAngle = Math.PI;
       var sunLightColor = 0xffffcc;
@@ -115,18 +187,18 @@
       var hemisphereDay = new THREE.HemisphereLight(0xffffff, 0.5);
       var moon;
       var textureLoader = new THREE.TextureLoader();
-      var lensflare = new THREE.Lensflare();
+      var lensflare = new Lensflare();
       var textureFlare0 = textureLoader.load(
         "https://threejs.org/examples/textures/lensflare/lensflare0.png"
       );
       var textureFlare3 = textureLoader.load(
         "https://threejs.org/examples/textures/lensflare/lensflare3.png"
       );
-      lensflare.addElement(new THREE.LensflareElement(textureFlare0, 700, 0));
-      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 60, 0.6));
-      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 70, 0.7));
-      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 120, 0.9));
-      lensflare.addElement(new THREE.LensflareElement(textureFlare3, 70, 1));
+      lensflare.addElement(new LensflareElement(textureFlare0, 700, 0));
+      lensflare.addElement(new LensflareElement(textureFlare3, 60, 0.6));
+      lensflare.addElement(new LensflareElement(textureFlare3, 70, 0.7));
+      lensflare.addElement(new LensflareElement(textureFlare3, 120, 0.9));
+      lensflare.addElement(new LensflareElement(textureFlare3, 70, 1));
 
       var spotlight = new THREE.SpotLight(0xffffff, 1);
       spotlight.angle = Math.PI / 6;
@@ -150,7 +222,7 @@
 
       var firstPersonCameraPosition = new THREE.Vector3();
       var firstPersonCameraRotation = new THREE.Euler();
-      var loader = new THREE.GLTFLoader();
+      var loader = new GLTFLoader();
 
       var interactibleObject;
 
@@ -409,10 +481,8 @@
         color: 0x0066ff,
         transparent: true,
         opacity: 0.6,
-        metalness: 0.1, // Menambahkan sedikit efek refleksi
-        roughness: 0.5, // Mengurangi kekasaran untuk meningkatkan efek refleksi
-        refractionRatio: 0.98, // Menambahkan efek refraksi
       });
+      const objectLoader = new GLTFLoader();
 
       function createPond(x, y, z, scale) {
         // Reuse the pond shape geometry if it's already created
@@ -536,13 +606,6 @@
         document.body.appendChild(renderer.domElement);
         renderer.setSize(window.innerWidth, window.innerHeight);
 
-        scene.add(pointLight);
-        cylinderMesh.position.copy(pointLight.position);
-        cylinderMesh.lookAt(
-          new THREE.Vector3().copy(pointLight.position).add(pointLight.position)
-        );
-        scene.add(cylinderMesh);
-
         scene.add(hemisphereDay);
 
         sunLight.castShadow = true;
@@ -568,6 +631,15 @@
         scene.add(targetObject);
 
         scene.add(wheatPlacementBox);
+
+        createBoundingBox(
+          scene,
+          [-10.13, 0.5, -40.15],
+          [7, 4.6, 2.9],
+          [0, 0, 0],
+          worldOctree,
+          boundingBox
+        );
 
         const windmill_location = { x: -20, y: 0, z: -16 };
         loadObject(
@@ -597,7 +669,7 @@
 
         createPond(22, 0.01, -10, 1);
 
-        makeWalls("./textures/wooden_fence.glb", -28, -24, 10, 10);
+        makeWalls("./textures/wooden_fence.glb", -28, -24, 13, 13);
         makeWheats("./textures/result/Wheat2.glb", -25, -9, 30, 30);
         loadObject("./textures/result/newBarn_Home.glb", -10, 0, 30, 3, {
           rotation: { x: 0, y: 270, z: 0 },
@@ -649,17 +721,6 @@
             rotation: { x: 0, y: 0, z: 0 },
           }
         );
-
-        loadObject("./textures/Pohon_2.glb", 30, 0, 34, 1, {
-          x: 0,
-          y: 180,
-          z: 0,
-        });
-        // loadObject("./textures/topless_crate.glb", 30, 0, 34, 1, {
-        //   x: 0,
-        //   y: 0,
-        //   z: 0,
-        // });
 
         loadObject(
           "./textures/result/harvester_noleh_kiri.glb",
@@ -735,7 +796,7 @@
         camera.position.x = 20;
         camera.position.y = 20;
 
-        controls = new THREE.PointerLockControls(camera, document.body);
+        controls = new PointerLockControls(camera, document.body);
         scene.add(controls.getObject());
 
         interactibleObject = camera;
@@ -1109,11 +1170,6 @@
       // }
 
       function checkCollision() {
-        // Check if the interactibleObject is a truck or harvester
-        if (interactibleObject.sName !== "truck") {
-        } else if (interactibleObject.sName !== "harvester") {
-        } else if (interactibleObject == camera) {
-        }
         const directions = [
           new THREE.Vector3(0, 0, -1), // forward
           new THREE.Vector3(0, 0, 1), // backward
@@ -1138,7 +1194,14 @@
           }
         });
 
-        if (intersected) {
+        // Perform octree collision detection
+        const octreeObjects = worldOctree.search(interactibleObject.position, true);
+        const octreeResult = octreeObjects.filter(
+          (obj) => obj !== interactibleObject
+        );
+
+        // If there are any intersections from either the raycasters or the octree, reset the object's position
+        if (intersected || octreeResult.length > 0) {
           interactibleObject.position.copy(previousPosition);
         } else {
           previousPosition.copy(interactibleObject.position);
@@ -1194,6 +1257,9 @@
         //   previousHarvesterPosition.copy(harvester.position);
         // }
       }
+      objects.forEach((object) => {
+        worldOctree.add(object, { useFaces: true });
+      });
 
       function animateJump() {
         currentTime = Date.now();
@@ -1211,11 +1277,12 @@
 
       function animate() {
         requestAnimationFrame(animate);
-
         // // Create a BoxHelper for the mesh and add it to the scene
         // const nboxHelper = new THREE.BoxHelper(object, 0xffff00); // yellow color
         // scene.add(nboxHelper);
-        objects.forEach((o) => (o.callbackCustom ? o.callbackCustom() : ""));
+        objects.forEach((o) => {
+          o.callbackCustom ? o.callbackCustom() : "";
+        });
         droppedHaybales.forEach((o) =>
           o.callbackCustom ? o.callbackCustom() : ""
         );
