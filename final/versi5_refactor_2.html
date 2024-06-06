@@ -117,6 +117,7 @@
           moon: {
             lightColor: 0xeeeeee,
             light: new THREE.DirectionalLight(0xffffff, 0.5),
+            object: null,
           },
           hemisphereDay: new THREE.HemisphereLight(0xffffff, 0.5),
           lensflare: (() => {
@@ -192,13 +193,65 @@
         vehicle: null,
         truck: null,
         harvester: null,
-        barndoor: null,
         barnDoorOpen: null,
         barnDoorClose: null,
         leftBarnDoor: null,
         rightBarnDoor: null,
+        baling_baling_windmill: null,
+        lotus: null,
+        goose: null,
       };
+      function checkCollision() {
+        // Check if the interactibleObject is a truck or harvester
 
+        if (world.interaction.interactibleObject.sName !== "truck") {
+        } else if (world.interaction.interactibleObject.sName !== "harvester") {
+        } else if (world.interaction.interactibleObject == camera) {
+        }
+        const directions = [
+          new THREE.Vector3(0, 0, -1), // forward
+          new THREE.Vector3(0, 0, 1), // backward
+          new THREE.Vector3(-1, 0, 0), // left
+          new THREE.Vector3(1, 0, 0), // right
+          new THREE.Vector3(-1, 0, -1), // forward left
+          new THREE.Vector3(1, 0, -1), // forward right
+          new THREE.Vector3(-1, 0, 1), // backward left
+          new THREE.Vector3(1, 0, 1), // backward right
+        ];
+
+        const raycasters = directions.map(
+          (direction) =>
+            new THREE.Raycaster(
+              world.interaction.interactibleObject.position,
+              direction
+            )
+        );
+
+        let intersected = false;
+        //  ADA ERROR DISEKITAR SINI
+        raycasters.forEach((raycaster) => {
+          const intersects = raycaster.intersectObjects(
+            world.interaction.objects,
+            true
+          );
+          if (intersects.length > 0 && intersects[0].distance < 1) {
+            intersected = true;
+          }
+        });
+
+        if (intersected) {
+          world.interaction.interactibleObject.position.copy(previousPosition);
+        } else {
+          previousPosition.copy(world.interaction.interactibleObject.position);
+        }
+      }
+      function rotate(object, { x = 0, y = 0, z = 0 } = {}) {
+        if (object === undefined) return;
+        const { degToRad } = THREE.MathUtils;
+        object.rotation.x += degToRad(x);
+        object.rotation.y += degToRad(y);
+        object.rotation.z += degToRad(z);
+      }
       function init() {
         world.scene = new THREE.Scene();
         world.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -259,21 +312,53 @@
 
         world.scene.add(world.environment.wheatPlacement.box);
 
-        // Additional Objects Loading
-        const loadObject = (path, x, y, z, scale, options = {}) => {
+        function addObjectToCheck(object, objectFile, callback = () => {}) {
+          const newObject = {
+            ...object,
+            sName: objectFile,
+            callbackCustom: callback,
+          };
+          world.interaction.objects.push(newObject);
+        }
+
+        const loadObject = (
+          path,
+          x,
+          y,
+          z,
+          scale,
+          options = {},
+          callback = () => {}
+        ) => {
+          const hasRotation = options.rotation !== undefined;
+          const disableShadow = options.shadow === false;
+
           world.loaders.gltfLoader.load(path, (gltf) => {
             const object = gltf.scene;
             object.position.set(x, y, z);
             object.scale.set(scale, scale, scale);
-            if (options.rotation) {
+
+            object.traverse((node) => {
+              if (node.isMesh) {
+                node.receiveShadow = !disableShadow;
+                node.castShadow = !disableShadow;
+              }
+            });
+
+            if (hasRotation) {
+              const { rotation } = options;
               object.rotation.set(
-                THREE.Math.degToRad(options.rotation.x || 0),
-                THREE.Math.degToRad(options.rotation.y || 0),
-                THREE.Math.degToRad(options.rotation.z || 0)
+                THREE.MathUtils.degToRad(rotation.x || 0),
+                THREE.MathUtils.degToRad(rotation.y || 0),
+                THREE.MathUtils.degToRad(rotation.z || 0)
               );
             }
+
             world.scene.add(object);
-            world.interaction.objects.push(object);
+
+            if (options.isCheckObject !== false) {
+              addObjectToCheck(object, path, callback);
+            }
           });
         };
 
@@ -307,13 +392,272 @@
 
         createPond(22, 0.01, -10, 1);
 
-        const makeWalls = (path, x, y, z, scale) => {
-          loadObject(path, x, y, z, scale);
-        };
+        async function makeWalls(objectFile, startX, startZ, w, h) {
+          const width = w + 1;
+          const height = h + 1;
+          const spacing = 5 * 0.975;
+          const positionsAndRotations = [];
 
-        const makeWheats = (path, x, y, z, scale) => {
-          loadObject(path, x, y, z, scale);
-        };
+          let gltf;
+          try {
+            gltf = await world.loaders.gltfLoader.loadAsync(objectFile);
+          } catch (error) {
+            console.error(`Failed to load object: ${error}`);
+            return;
+          }
+
+          const objectTemplate = gltf.scene;
+
+          for (let i = 1; i < width; i++) {
+            positionsAndRotations.push({
+              position: [startX + i * spacing, 0.75, startZ],
+              rotation: { x: 0, y: Math.PI / 2, z: 0 },
+            });
+          }
+          for (let i = 0; i < width - 1; i++) {
+            positionsAndRotations.push({
+              position: [
+                startX + i * spacing,
+                0.75,
+                startZ + (height - 1) * spacing,
+              ],
+              rotation: { x: 0, y: (3 * Math.PI) / 2, z: 0 },
+            });
+          }
+          for (let i = 0; i < height - 1; i++) {
+            positionsAndRotations.push({
+              position: [startX, 0.75, startZ + i * spacing],
+              rotation: { x: 0, y: Math.PI, z: 0 },
+            });
+          }
+          for (let i = 1; i < height; i++) {
+            positionsAndRotations.push({
+              position: [
+                startX + (width - 1) * spacing,
+                0.75,
+                startZ + i * spacing,
+              ],
+              rotation: { x: 0, y: 0, z: 0 },
+            });
+          }
+
+          const group = new THREE.Group();
+
+          positionsAndRotations.forEach(({ position, rotation }) => {
+            const object = objectTemplate.clone(true);
+            object.position.set(...position);
+            object.scale.set(1, 1, 1);
+            object.rotation.set(rotation.x, rotation.y, rotation.z);
+            object.traverse(function (node) {
+              if (node.isMesh) {
+                node.receiveShadow = true;
+                node.castShadow = true;
+              }
+            });
+            group.add(object);
+          });
+
+          world.scene.add(group);
+          group.children.forEach((object) => {
+            addObjectToCheck(object, objectFile);
+          });
+        }
+        async function makeWheats(objectFile, startX, startZ, w, h) {
+          const width = w + 1;
+          const height = h + 1;
+          const spacing = 1;
+          const positionsAndRotations = [];
+
+          const floorWidth = width * spacing;
+          const floorHeight = height * spacing;
+          const floorGeometry = new THREE.PlaneGeometry(
+            floorWidth,
+            floorHeight
+          );
+          const floorMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8b4513,
+          });
+          const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+          floor.receiveShadow = true;
+          floor.rotation.x = -Math.PI / 2;
+          floor.position.set(
+            startX + (floorWidth - 1) / 2,
+            0.01,
+            startZ + (floorHeight - 1) / 2
+          );
+          world.scene.add(floor);
+
+          for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+              positionsAndRotations.push({
+                position: [startX + j * spacing, 0, startZ + i * spacing],
+                rotation: { x: 0, y: 90, z: 0 },
+              });
+            }
+          }
+
+          // Load the GLB file once
+          let gltf;
+          try {
+            gltf = await world.loaders.gltfLoader.loadAsync(objectFile);
+          } catch (error) {
+            console.error(`Failed to load object: ${error}`);
+            return;
+          }
+
+          const objectTemplate = gltf.scene.clone(); // Clone the loaded object
+          const wheatScale = 5;
+          const promises = positionsAndRotations.map(
+            ({ position, rotation }) => {
+              return new Promise((resolve, reject) => {
+                const object = objectTemplate.clone(); // Clone the object for each wheat
+                object.position.set(...position);
+                object.scale.set(wheatScale, wheatScale, wheatScale);
+                object.traverse(function (node) {
+                  if (node.isMesh) {
+                    node.receiveShadow = true;
+                    node.castShadow = true;
+                  }
+                });
+                if (rotation) {
+                  object.rotation.x = THREE.MathUtils.degToRad(rotation.x);
+                  object.rotation.y = THREE.MathUtils.degToRad(rotation.y);
+                  object.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+                }
+                world.scene.add(object);
+                world.environment.wheats.push(object);
+                resolve(object); // Resolve the promise after setting up the object
+              });
+            }
+          );
+
+          try {
+            await Promise.all(promises); // Wait for all objects to finish setting up
+          } catch (error) {
+            console.error(error);
+          }
+        }
+        function wheatCollision() {
+          var harvester = world.harvester;
+          const harvesterPosition = harvester.position;
+          const harvesterRadius = 1.5;
+          var harvesterDirection = new THREE.Vector3();
+          harvester.getWorldDirection(harvesterDirection);
+
+          world.environment.wheats.forEach((wheat, index) => {
+            const wheatPosition = wheat.position;
+            const distance = Math.sqrt(
+              Math.pow(wheatPosition.x - harvesterPosition.x, 2) +
+                Math.pow(wheatPosition.y - harvesterPosition.y, 2) +
+                Math.pow(wheatPosition.z - harvesterPosition.z, 2)
+            );
+            if (distance <= harvesterRadius) {
+              world.scene.remove(wheat);
+              world.environment.wheats.splice(index, 1);
+              wheatDestroyed++;
+            }
+          });
+
+          if (wheatDestroyed >= 30) {
+            var dropDistance = 1.65;
+            var dropLocation = new THREE.Vector3()
+              .copy(harvester.position)
+              .sub(harvesterDirection.clone().multiplyScalar(dropDistance));
+            loadObject(
+              "./textures/hay_bale_free.glb",
+              dropLocation.x,
+              0.7,
+              dropLocation.z,
+              0.005,
+              {
+                rotation: {
+                  x: 90,
+                  y: 0,
+                  z: harvesterDirection.z * 90,
+                },
+                isCheckObject: false,
+              },
+              wheatPickup,
+              true
+            );
+            wheatDestroyed = 0; // Reset the counter
+          }
+        }
+        function wheatPickup(haybale) {
+          haybale.pickedUp = false;
+          const haybalePickedUpScale = 0.0075;
+          const maxHaybales = 2;
+          const pickupDistance = 5;
+          const dropoffDistanceLimit = 4;
+          world.interaction.droppedHaybales.push(haybale);
+          return function () {
+            const truck = world.truck;
+            if (interactibleObject == truck) {
+              const distance = interactibleObject.position.distanceTo(
+                haybale.position
+              );
+              const dropoffDistance = interactibleObject.position.distanceTo(
+                wheatPlacementBox.position
+              );
+
+              if (
+                distance < pickupDistance &&
+                !haybale.pickedUp &&
+                pickedUpHaybales.length < maxHaybales
+              ) {
+                haybale.pickedUp = true;
+                pickedUpHaybales.push(haybale);
+                truck.add(haybale);
+                haybale.scale.set(
+                  haybalePickedUpScale,
+                  haybalePickedUpScale,
+                  haybalePickedUpScale
+                );
+                for (let i = 0; i < pickedUpHaybales.length; i++) {
+                  const current = pickedUpHaybales[i];
+                  current.position.set(
+                    0,
+                    Math.floor(i / 2 + 1) * 2,
+                    ((i % 2) + 1) * -2.3 - 0.725
+                  );
+                  current.rotation.set(
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(90)
+                  );
+                }
+              } else if (dropoffDistance < dropoffDistanceLimit) {
+                if (pickedUpHaybales.length >= 1) {
+                  const current = pickedUpHaybales[0];
+                  current.callbackCustom = () => {};
+                  truck.remove(current);
+                  world.scene.remove(current);
+                  pickedUpHaybales.shift();
+                  const prevLength = pickedUpHaybales.length;
+                  placedInBarnHaybales.push(current);
+                  for (
+                    let i = prevLength;
+                    i < placedInBarnHaybales.length;
+                    i++
+                  ) {
+                    const placeHaybale = placedInBarnHaybales[i];
+                    placeHaybale.position.set(
+                      -22.5,
+                      1 + Math.floor(i / 6) * 2,
+                      35 - (i % 6) * 2
+                    );
+                    placeHaybale.rotation.set(
+                      THREE.MathUtils.degToRad(0),
+                      THREE.MathUtils.degToRad(0),
+                      THREE.MathUtils.degToRad(90)
+                    );
+                  }
+                  world.scene.add(current);
+                }
+              }
+            }
+          };
+        }
 
         makeWalls("./textures/wooden_fence.glb", -28, -24, 13, 13);
         makeWheats("./textures/Wheat2.glb", -25, -9, 30, 30);
@@ -510,14 +854,37 @@
           1000
         );
         world.camera.position.set(20, 20, 0);
-        world.truck = world.interaction.objects.find((o) => o.sName.includes("low_poly_truck"));
-        world.harvester = world.interaction.objects.find((o) => o.sName.includes("harvester"));
+        world.truck = world.interaction.objects.find((o) =>
+          o.sName.includes("low_poly_truck")
+        );
+        world.harvester = world.interaction.objects.find((o) =>
+          o.sName.includes("harvester")
+        );
+        world.leftBarnDoor = world.interaction.objects.find((o) =>
+          o.sName.includes("BarnKiri")
+        );
+        world.rightBarnDoor = world.interaction.objects.find((o) =>
+          o.sName.includes("BarnKanan")
+        );
+        world.lighting.moon.object = world.interaction.objects.find((o) =>
+          o.sName.includes("moon")
+        );
+        world.baling_baling_windmill = world.interaction.objects.find((o) =>
+          o.sName.includes("baling_baling_windmill")
+        );
+        world.lotus = world.interaction.objects.find((o) =>
+          o.sName.includes("lotus")
+        );
+        world.goose = world.interaction.objects.find((o) =>
+          o.sName.includes("goose")
+        );
         const controls = new THREE.PointerLockControls(
           world.camera,
           document.body
         );
+        world.controls = controls;
         world.scene.add(controls.getObject());
-        let interactibleObject = world.camera;
+        world.interaction.interactibleObject = world.camera;
         window.addEventListener("mousedown", () => controls.lock(), false);
         document.addEventListener(
           "pointerlockchange",
@@ -538,11 +905,11 @@
             vehicle.position
           );
           if (!mode && distance < 5) {
-            interactibleObject = vehicle;
+            world.interaction.interactibleObject = vehicle;
             mode = true;
             switchMode();
           } else if (mode) {
-            interactibleObject = world.camera;
+            world.interaction.interactibleObject = world.camera;
             mode = false;
             switchToFirstPersonMode();
             world.camera.position.copy(position);
@@ -550,7 +917,9 @@
         }
 
         function toggleDoor(doorName, mode, openRotate, closeRotate) {
-          const door = objects.find((o) => o.sName.includes(doorName));
+          const door = world.interaction.objects.find((o) =>
+            o.sName.includes(doorName)
+          );
           const distance = interactibleObject.position.distanceTo(
             door.position
           );
@@ -580,28 +949,33 @@
                 moveRight = true;
                 break;
               case 69: // E buat enter tractor/harverset
-                if (!truckMode) {
+                if (!world.modes.truckMode) {
                   enterVehicle(
                     "harvester",
-                    harvesterMode,
+                    world.modes.harvesterMode,
                     switchToharvesterMode,
                     { x: harvester.position.x, y: 7, z: harvester.position.z }
                   );
                 }
-                if (!harvesterMode) {
-                  enterVehicle("low_poly_truck", truckMode, switchTotruckMode, {
-                    x: truck.position.x + 2,
-                    y: 5,
-                    z: truck.position.z + 2,
-                  });
+                if (!world.modes.harvesterMode) {
+                  enterVehicle(
+                    "low_poly_truck",
+                    world.modes.truckMode,
+                    switchTotruckMode,
+                    {
+                      x: truck.position.x + 2,
+                      y: 5,
+                      z: truck.position.z + 2,
+                    }
+                  );
                 }
                 break;
               case 70: // F buat buka Barn Door
                 toggleDoor(
                   "Barn",
-                  barnDoorMode,
-                  barnDoorOpenRotate,
-                  barnDoorCloseRotate
+                  world.modes.barnDoorMode,
+                  world.modes.barnDoorOpenRotate,
+                  world.modes.barnDoorCloseRotate
                 );
                 break;
               case 81: // Q  lampu mobil
@@ -610,8 +984,8 @@
                 }
                 break;
               case 32: // Tombol Space
-                if (!isJumping) {
-                  isJumping = true;
+                if (!world.movement.isJumping) {
+                  world.movement.isJumping = true;
                   jumpStartTime = Date.now();
                   jumpStartY = controls.getObject().position.y;
                 }
@@ -650,8 +1024,337 @@
         );
       }
 
+      function animateJump() {
+        currentTime = Date.now();
+        elapsedTime = currentTime - jumpStartTime;
+        if (elapsedTime < jumpDuration) {
+          progress = elapsedTime / jumpDuration;
+          jumpHeightOffset = jumpHeight * Math.sin(progress * Math.PI);
+          world.controls.getObject().position.y = jumpStartY + jumpHeightOffset;
+          requestAnimationFrame(animateJump);
+        } else {
+          world.controls.getObject().position.y = jumpStartY;
+          isJumping = false;
+        }
+      }
+
       function animate() {
         requestAnimationFrame(animate);
+
+        // // Create a BoxHelper for the mesh and add it to the scene
+        world.interaction.objects.forEach((o) =>
+          o.callbackCustom ? o.callbackCustom() : ""
+        );
+        world.interaction.droppedHaybales.forEach((o) =>
+          o.callbackCustom ? o.callbackCustom() : ""
+        );
+        const doorKiri = world.leftBarnDoor;
+        const doorKanan = world.rightBarnDoor;
+        if (world.barnDoorOpenRotate) {
+          world.barnDoorCloseRotate = false;
+          const rotateOpen =
+            doorKiri.rotation.y > THREE.MathUtils.degToRad(-90) &&
+            doorKiri.rotation.y < THREE.MathUtils.degToRad(360);
+          if (rotateOpen) {
+            rotate(doorKiri, { x: 0, y: 1, z: 0 });
+            rotate(doorKanan, { x: 0, y: -1, z: 0 });
+          } else {
+            world.barnDoorOpenRotate = false;
+          }
+        }
+        if (world.barnDoorCloseRotate) {
+          world.barnDoorOpenRotate = false;
+          const rotateClose =
+            doorKiri.rotation.y > THREE.MathUtils.degToRad(270) &&
+            doorKiri.rotation.y < THREE.MathUtils.degToRad(360 + 90);
+          if (rotateClose) {
+            rotate(doorKiri, { x: 0, y: -1, z: 0 });
+            rotate(doorKanan, { x: 0, y: 1, z: 0 });
+          } else {
+            world.barnDoorCloseRotate = false;
+          }
+        }
+        var baling_baling_windmill = world.baling_baling_windmill;
+        rotate(baling_baling_windmill, { x: 1, y: 0, z: 0 });
+
+        var lotus = world.lotus;
+        rotate(lotus, { x: 0, y: 0.15, z: 0 });
+
+        var goose = world.goose;
+        // rotate(goose, { x: goose.position.x + 1, y: 0, z: 0 });
+
+        if (world.lighting.sun.angle < world.lighting.sun.maxAngle) {
+          world.lighting.sun.angle += 0.001;
+        } else {
+          world.lighting.sun.angle = 0;
+          world.modes.dayNightCycle = (world.modes.dayNightCycle + 1) % 2;
+        }
+
+        world.lighting.sun.light.position.x =
+          Math.cos(world.lighting.sun.angle) * world.modes.orbitRadius;
+        world.lighting.sun.light.position.y =
+          Math.sin(world.lighting.sun.angle) * world.modes.orbitRadius;
+        world.lighting.sun.light.position.z = 0;
+
+        world.lighting.hemisphereDay.position.x =
+          Math.cos(world.lighting.sun.angle) * world.modes.orbitRadius;
+        world.lighting.hemisphereDay.position.y =
+          Math.sin(world.lighting.sun.angle) * world.modes.orbitRadius;
+        world.lighting.hemisphereDay.position.z = 0;
+
+        world.lighting.moon.light.position.x =
+          Math.cos(world.lighting.sun.angle) * world.modes.orbitRadius;
+        world.lighting.moon.light.position.y =
+          Math.sin(world.lighting.sun.angle) * world.modes.orbitRadius;
+        world.lighting.moon.light.position.z = 0;
+
+        moon = world.lighting.moon.object;
+        if (moon) {
+          moon.position.x =
+            Math.cos(world.lighting.sun.angle) * world.modes.orbitRadius;
+          moon.position.y =
+            Math.sin(world.lighting.sun.angle) * world.modes.orbitRadius;
+          moon.position.z = 0;
+          if (world.modes.dayNightCycle === 0) {
+            moon.visible = false;
+          } else {
+            moon.visible = true;
+          }
+        }
+
+        var skyColor;
+        var sunriseColor = new THREE.Color(0.8, 0.6, 0.2);
+        var morningColor = new THREE.Color(0.2, 0.6, 0.8);
+        var noonColor = new THREE.Color(0.4, 0.8, 1.0);
+        var eveningColor = new THREE.Color(0.8, 0.4, 0.2);
+        var sunsetColor = new THREE.Color(0.6, 0.3, 0.1);
+        var nightColor = new THREE.Color(0.05, 0.05, 0.2);
+
+        var transitionProgress =
+          world.lighting.sun.angle / world.lighting.sun.maxAngle;
+        if (world.modes.dayNightCycle === 0) {
+          world.lighting.lensflare.visible = true;
+          if (transitionProgress < 0.25) {
+            skyColor = sunriseColor.lerp(
+              morningColor,
+              transitionProgress / 0.25
+            );
+            world.lighting.sun.light.intensity =
+              (transitionProgress / 0.25) * 0.5;
+            world.lighting.moon.light.intensity =
+              0.5 - (transitionProgress / 0.25) * 0.5;
+            world.lighting.hemisphereDay.intensity =
+              (transitionProgress / 0.25) * 0.5;
+          } else if (transitionProgress < 0.5) {
+            skyColor = morningColor.lerp(
+              noonColor,
+              (transitionProgress - 0.25) / 0.25
+            );
+          } else if (transitionProgress < 0.75) {
+            skyColor = noonColor.lerp(
+              eveningColor,
+              (transitionProgress - 0.5) / 0.25
+            );
+          } else {
+            skyColor = eveningColor.lerp(
+              sunsetColor,
+              (transitionProgress - 0.75) / 0.25
+            );
+            world.lighting.moon.light.intensity =
+              ((transitionProgress - 0.75) / 0.25) * 0.25;
+            world.lighting.hemisphereDay.intensity =
+              0.5 - ((transitionProgress - 0.75) / 0.25) * 0.5;
+          }
+        } else {
+          world.lighting.lensflare.visible = false;
+          if (transitionProgress < 0.1) {
+            skyColor = sunsetColor.lerp(nightColor, transitionProgress / 0.1);
+            world.lighting.moon.light.intensity =
+              (transitionProgress / 0.1) * 0.25;
+            world.lighting.sun.light.intensity =
+              0.5 - (transitionProgress / 0.1) * 0.5;
+          } else if (transitionProgress < 0.9) {
+            skyColor = nightColor;
+          } else {
+            skyColor = nightColor.lerp(
+              sunriseColor,
+              (transitionProgress - 0.9) / 0.1
+            );
+          }
+        }
+        world.scene.background = skyColor;
+
+        var moveSpeed = 0.2;
+        var moveVector = new THREE.Vector3();
+        world.controls.getObject().getWorldDirection(moveVector);
+        moveVector.y = 0;
+        moveVector.normalize();
+
+        if (!world.modes.harvesterMode && !world.movement.fly) {
+          world.environment.raycaster.set(
+            world.controls.getObject().position,
+            world.environment.downRay
+          );
+          var intersects = world.environment.raycaster.intersectObjects(
+            world.scene.children,
+            true
+          );
+
+          if (intersects.length > 0) {
+            if (intersects[0].distance - 1.5 > 0) {
+              world.controls.getObject().position.y -= 0.6;
+            }
+          }
+        }
+
+        for (var i = 0; i < world.environment.clouds.length; i++) {
+          world.environment.clouds[i].position.x -= 0.1;
+
+          if (world.environment.clouds[i].position.x < -300) {
+            world.environment.clouds[i].position.x = 300;
+            world.environment.clouds[i].position.y = Math.random() * 20 + 30;
+            world.environment.clouds[i].position.z = Math.random() * 500 - 200;
+          }
+        }
+        checkCollision();
+        if (world.modes.harvesterMode) {
+          wheatCollision();
+          harvesterCollision();
+          var harvester = world.harvester;
+          var harvesterSpeed = moveSpeed;
+          var rotationSpeed = 0.01;
+          const newPosition = harvester.position.clone();
+          if (moveForward) {
+            harvester.position.add(
+              moveVector.clone().multiplyScalar(harvesterSpeed)
+            );
+            if (moveLeft) {
+              harvester.rotateY(rotationSpeed);
+            }
+            if (moveRight) {
+              harvester.rotateY(-rotationSpeed);
+            }
+          }
+          if (moveBackward) {
+            harvester.position.sub(
+              moveVector.clone().multiplyScalar(harvesterSpeed)
+            );
+            if (moveLeft) {
+              harvester.rotateY(-rotationSpeed);
+            }
+            if (moveRight) {
+              harvester.rotateY(rotationSpeed);
+            }
+          }
+          // Check for collision with the new position
+          // const intersected = checkCollision(newPosition, harvester);
+          // if (intersected) {
+          //   harvester.position.copy(newPosition);
+          // }
+
+          harvester.position.y = harvester_position.y;
+          // harvester.position.y = harvester_position.y + 1;
+          var harvesterDirection = new THREE.Vector3();
+          harvester.getWorldDirection(harvesterDirection);
+          var cameraDistance = 10;
+          var cameraPosition = new THREE.Vector3()
+            .copy(harvester.position)
+            .sub(harvesterDirection.clone().multiplyScalar(cameraDistance));
+          cameraPosition.y = 8;
+          camera.position.copy(cameraPosition);
+          camera.lookAt(harvester.position);
+
+          var lightPosition = new THREE.Vector3()
+            .copy(harvester.position)
+            .add(harvesterDirection.clone().multiplyScalar(3));
+          var lightTarget = new THREE.Vector3()
+            .copy(harvester.position)
+            .add(harvesterDirection.clone().multiplyScalar(cameraDistance));
+          spotlight.position.copy(lightPosition);
+          spotlight.target.position.copy(lightTarget.clone());
+        } else if (truckMode) {
+          wheatCollision();
+          var truck = objects.find((o) => o.sName.includes("low_poly_truck"));
+          var truckSpeed = moveSpeed * 1.5;
+          var rotationSpeed = 0.025;
+          const newPosition = truck.position.clone();
+          if (moveForward) {
+            truck.position.add(moveVector.clone().multiplyScalar(truckSpeed));
+            if (moveLeft) {
+              truck.rotateY(rotationSpeed);
+            }
+            if (moveRight) {
+              truck.rotateY(-rotationSpeed);
+            }
+          }
+          if (moveBackward) {
+            truck.position.sub(moveVector.clone().multiplyScalar(truckSpeed));
+            if (moveLeft) {
+              truck.rotateY(-rotationSpeed);
+            }
+            if (moveRight) {
+              truck.rotateY(rotationSpeed);
+            }
+          }
+          // const intersected = checkCollision(newPosition, truck);
+
+          // if (intersected) {
+          //   truck.position.copy(newPosition);
+          // }
+
+          truck.position.y = 1.15;
+          var truckDirection = new THREE.Vector3();
+          truck.getWorldDirection(truckDirection);
+          var cameraDistance = 10;
+          var cameraPosition = new THREE.Vector3()
+            .copy(truck.position)
+            .sub(truckDirection.clone().multiplyScalar(cameraDistance));
+          cameraPosition.y = 8;
+          camera.position.copy(cameraPosition);
+          camera.lookAt(truck.position);
+
+          var lightPosition = new THREE.Vector3()
+            .copy(truck.position)
+            .add(truckDirection.clone().multiplyScalar(3));
+          var lightTarget = new THREE.Vector3()
+            .copy(truck.position)
+            .add(truckDirection.clone().multiplyScalar(cameraDistance));
+          spotlight.position.copy(lightPosition);
+          spotlight.target.position.copy(lightTarget.clone());
+        } else {
+          const newPosition = world.controls.getObject().position.clone();
+          if (isJumping) {
+            animateJump();
+          }
+          if (moveForward)
+            world.controls
+              .getObject()
+              .position.add(moveVector.clone().multiplyScalar(moveSpeed));
+          if (moveBackward)
+            world.controls
+              .getObject()
+              .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
+          if (moveLeft)
+            world.controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(world.controls.getObject().up)
+                  .negate()
+                  .multiplyScalar(moveSpeed)
+              );
+          if (moveRight)
+            world.controls
+              .getObject()
+              .position.add(
+                moveVector
+                  .clone()
+                  .cross(world.controls.getObject().up)
+                  .multiplyScalar(moveSpeed)
+              );
+        }
+
         world.renderer.render(world.scene, world.camera);
       }
 
