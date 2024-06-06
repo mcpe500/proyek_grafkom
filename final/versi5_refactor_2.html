@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Render .glb with Three.js</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+      }
+
+      .hide-cursor {
+        cursor: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <script
+      async
+      src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"
+    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Lensflare.js"></script>
+    <!-- <script src="./library/threejs-octree/dist/bundle.js"></script> -->
+    <script>
+      const world = {
+        scene: null,
+        renderer: null,
+        controls: null,
+        camera: null,
+        ssrPass: null,
+        movement: {
+          forward: false,
+          backward: false,
+          left: false,
+          right: false,
+          fly: false,
+          isJumping: false,
+          jumpStartTime: null,
+          jumpDuration: 500,
+          jumpHeight: 2,
+          jumpStartY: null,
+        },
+        time: {
+          currentTime: null,
+          elapsedTime: null,
+          progress: null,
+        },
+        positions: {
+          previous: new THREE.Vector3(),
+          cameraOffset: new THREE.Vector3(-10, 5, 0),
+        },
+        interaction: {
+          objects: [],
+          droppedHaybales: [],
+          pickedUpHaybales: [],
+          placedInBarnHaybales: [],
+          interactibleObject: null,
+        },
+        environment: {
+          clouds: [],
+          wheats: [],
+          raycaster: new THREE.Raycaster(),
+          downRay: new THREE.Vector3(0, -1, 0),
+          wheatPlacement: {
+            geometry: new THREE.BoxGeometry(1, 4, 8),
+            mesh: new THREE.MeshBasicMaterial({
+              color: 0xffffff,
+              opacity: 0.0,
+              transparent: true,
+            }),
+            box: new THREE.Mesh(
+              new THREE.BoxGeometry(1, 4, 8),
+              new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                opacity: 0.0,
+                transparent: true,
+              })
+            ),
+          },
+          pondShape: (() => {
+            const shape = new THREE.Shape();
+            shape.moveTo(0, 10);
+            shape.quadraticCurveTo(10, 12, 10, 10);
+            shape.quadraticCurveTo(12, 15, 10, 0);
+            shape.quadraticCurveTo(5, -10, 0, 0);
+            shape.quadraticCurveTo(-5, 5, 0, 10);
+            return shape;
+          })(),
+        },
+        lighting: {
+          pointLight: (() => {
+            const light = new THREE.PointLight(0xffffff, 0.5, 100);
+            light.position.set(-10, 14, 30);
+            light.castShadow = true;
+            light.shadow.mapSize.width = 1024;
+            light.shadow.mapSize.height = 1024;
+            light.shadow.radius = 5;
+            light.shadow.camera.near = 0.5;
+            light.shadow.camera.far = 30;
+            return light;
+          })(),
+          sun: {
+            angle: 0,
+            maxAngle: Math.PI,
+            lightColor: 0xffffcc,
+            light: new THREE.DirectionalLight(0xffffff, 0.5),
+          },
+          moon: {
+            lightColor: 0xeeeeee,
+            light: new THREE.DirectionalLight(0xffffff, 0.5),
+          },
+          hemisphereDay: new THREE.HemisphereLight(0xffffff, 0.5),
+          lensflare: (() => {
+            const lensflare = new THREE.Lensflare();
+            const textureLoader = new THREE.TextureLoader();
+            const textureFlare0 = textureLoader.load(
+              "https://threejs.org/examples/textures/lensflare/lensflare0.png"
+            );
+            const textureFlare3 = textureLoader.load(
+              "https://threejs.org/examples/textures/lensflare/lensflare3.png"
+            );
+            lensflare.addElement(
+              new THREE.LensflareElement(textureFlare0, 700, 0)
+            );
+            lensflare.addElement(
+              new THREE.LensflareElement(textureFlare3, 60, 0.6)
+            );
+            lensflare.addElement(
+              new THREE.LensflareElement(textureFlare3, 70, 0.7)
+            );
+            lensflare.addElement(
+              new THREE.LensflareElement(textureFlare3, 120, 0.9)
+            );
+            lensflare.addElement(
+              new THREE.LensflareElement(textureFlare3, 70, 1)
+            );
+            return lensflare;
+          })(),
+          spotlight: (() => {
+            const spotlight = new THREE.SpotLight(0xffffff, 1);
+            spotlight.angle = Math.PI / 6;
+            spotlight.penumbra = 0.5;
+            spotlight.decay = 2;
+            spotlight.distance = 200;
+            spotlight.position.copy(new THREE.Vector3(10, 5, 10));
+            spotlight.castShadow = true;
+            spotlight.intensity = 0;
+            const targetObject = new THREE.Object3D();
+            targetObject.position.copy(new THREE.Vector3(0, 0, 0));
+            spotlight.target = targetObject;
+            return spotlight;
+          })(),
+          ambientLight: new THREE.AmbientLight(0xffffff, 0.5),
+        },
+        geometry: {
+          cylinder: new THREE.CylinderGeometry(0.2, 0.2, 0.2, 32),
+        },
+        material: {
+          cylinder: new THREE.MeshBasicMaterial({ color: 0xffff00 }),
+        },
+        loaders: {
+          textureLoader: new THREE.TextureLoader(),
+          gltfLoader: new THREE.GLTFLoader(),
+        },
+        cameraSettings: {
+          firstPersonPosition: new THREE.Vector3(),
+          firstPersonRotation: new THREE.Euler(),
+        },
+        modes: {
+          harvesterMode: false,
+          truckMode: false,
+          barnDoorMode: false,
+          barnDoorOpenRotate: false,
+          barnDoorCloseRotate: false,
+          barnDoorOpenCoords: { x: 2, y: 0, z: 32 },
+          barnDoorCloseCoords: { x: 2, y: 0, z: 27.4 },
+          harvesterPosition: new THREE.Vector3(10, 0.1, 10),
+          previousHarvesterPosition: new THREE.Vector3(),
+          wheatDestroyed: 0,
+          orbitRadius: 150,
+          dayNightCycle: 0,
+        },
+        vehicle: null,
+        truck: null,
+        harvester: null,
+        barndoor: null,
+        barnDoorOpen: null,
+        barnDoorClose: null,
+        leftBarnDoor: null,
+        rightBarnDoor: null,
+      };
+
+      function init() {
+        world.scene = new THREE.Scene();
+        world.renderer = new THREE.WebGLRenderer({ antialias: true });
+        world.renderer.shadowMap.enabled = true;
+        world.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(world.renderer.domElement);
+        world.renderer.setSize(window.innerWidth, window.innerHeight);
+
+        // Initialize camera
+        world.camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        world.camera.position.set(0, 1.6, 3);
+        world.scene.add(world.camera);
+
+        world.scene.add(world.lighting.pointLight);
+
+        // Initialize cylinderMesh
+        world.cylinderMesh = new THREE.Mesh(
+          world.geometry.cylinder,
+          world.material.cylinder
+        );
+        world.cylinderMesh.position.copy(world.lighting.pointLight.position);
+        world.cylinderMesh.lookAt(
+          new THREE.Vector3()
+            .copy(world.lighting.pointLight.position)
+            .add(world.lighting.pointLight.position)
+        );
+        world.scene.add(world.cylinderMesh);
+
+        world.scene.add(world.lighting.hemisphereDay);
+
+        const shadowSize = 10; // Define a shadowSize value
+        world.lighting.sun.light.castShadow = true;
+        world.lighting.sun.light.shadow.mapSize.width = 2048;
+        world.lighting.sun.light.shadow.mapSize.height = 2048;
+        world.lighting.sun.light.shadow.camera.top += shadowSize;
+        world.lighting.sun.light.shadow.camera.bottom -= shadowSize;
+        world.lighting.sun.light.shadow.camera.left -= shadowSize;
+        world.lighting.sun.light.shadow.camera.right += shadowSize;
+        world.lighting.sun.light.add(world.lighting.lensflare);
+        world.scene.add(world.lighting.sun.light);
+
+        world.lighting.moon.light.castShadow = true;
+        world.lighting.moon.light.shadow.mapSize.width = 2048;
+        world.lighting.moon.light.shadow.mapSize.height = 2048;
+        world.lighting.moon.light.shadow.camera.top += shadowSize;
+        world.lighting.moon.light.shadow.camera.bottom -= shadowSize;
+        world.lighting.moon.light.shadow.camera.left -= shadowSize;
+        world.lighting.moon.light.shadow.camera.right += shadowSize;
+        world.scene.add(world.lighting.moon.light);
+
+        world.scene.add(world.lighting.spotlight);
+        world.scene.add(world.lighting.spotlight.target);
+
+        world.scene.add(world.environment.wheatPlacement.box);
+
+        // Additional Objects Loading
+        const loadObject = (path, x, y, z, scale, options = {}) => {
+          world.loaders.gltfLoader.load(path, (gltf) => {
+            const object = gltf.scene;
+            object.position.set(x, y, z);
+            object.scale.set(scale, scale, scale);
+            if (options.rotation) {
+              object.rotation.set(
+                THREE.Math.degToRad(options.rotation.x || 0),
+                THREE.Math.degToRad(options.rotation.y || 0),
+                THREE.Math.degToRad(options.rotation.z || 0)
+              );
+            }
+            world.scene.add(object);
+            world.interaction.objects.push(object);
+          });
+        };
+
+        const windmill_location = { x: -20, y: 0, z: -16 };
+        loadObject(
+          "./textures/kaki_windmill.glb",
+          windmill_location.x,
+          windmill_location.y,
+          windmill_location.z,
+          0.05,
+          {
+            rotation: { x: 90, y: 0, z: 0 },
+          }
+        );
+        loadObject(
+          "./textures/baling_baling_windmill.glb",
+          windmill_location.x + 1.2,
+          windmill_location.y + 28.5,
+          windmill_location.z,
+          0.05
+        );
+
+        const createPond = (x, y, z, scale) => {
+          const geometry = new THREE.ShapeGeometry(world.environment.pondShape);
+          const material = new THREE.MeshBasicMaterial({ color: 0x00aaff });
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.position.set(x, y, z);
+          mesh.scale.set(scale, scale, scale);
+          world.scene.add(mesh);
+        };
+
+        createPond(22, 0.01, -10, 1);
+
+        const makeWalls = (path, x, y, z, scale) => {
+          loadObject(path, x, y, z, scale);
+        };
+
+        const makeWheats = (path, x, y, z, scale) => {
+          loadObject(path, x, y, z, scale);
+        };
+
+        makeWalls("./textures/wooden_fence.glb", -28, -24, 13, 13);
+        makeWheats("./textures/Wheat2.glb", -25, -9, 30, 30);
+
+        const objectsToLoad = [
+          {
+            path: "./textures/newBarn_Home.glb",
+            x: -10,
+            y: 0,
+            z: 30,
+            scale: 3,
+            options: { rotation: { x: 0, y: 270, z: 0 } },
+          },
+          {
+            path: "./textures/PintuBarnKanan.glb",
+            x: 5.5,
+            y: 0,
+            z: 33,
+            scale: 3,
+            options: { rotation: { x: 0, y: 180, z: 0 } },
+          },
+          {
+            path: "./textures/PintuBarnKiri.glb",
+            x: 5.5,
+            y: 0,
+            z: 27,
+            scale: 3,
+            options: { rotation: { x: 0, y: 270, z: 0 } },
+          },
+          {
+            path: "./textures/scarecrow.glb",
+            x: -10,
+            y: 0,
+            z: 6,
+            scale: 2,
+            options: { rotation: { x: 0, y: 90, z: 0 } },
+          },
+          {
+            path: "./textures/moon2.glb",
+            x: 10,
+            y: 0,
+            z: 10,
+            scale: 3,
+            options: { shadow: false },
+          },
+          { path: "./textures/cart.glb", x: 30, y: 0, z: 0, scale: 0.2 },
+          { path: "./textures/Pohon_2.glb", x: 30, y: 0, z: -3, scale: 1 },
+          {
+            path: "./textures/low_poly_truck.glb",
+            x: 0,
+            y: 1.15,
+            z: -18,
+            scale: 0.5,
+            options: { rotation: { x: 0, y: 0, z: 0 } },
+          },
+          {
+            path: "./textures/Pohon_2.glb",
+            x: 30,
+            y: 0,
+            z: 34,
+            scale: 1,
+            options: { x: 0, y: 180, z: 0 },
+          },
+          { path: "./textures/logs.glb", x: 30, y: 0.23, z: 30, scale: 3 },
+          {
+            path: "./textures/water_well.glb",
+            x: 20,
+            y: 0,
+            z: 24,
+            scale: 0.03,
+          },
+        ];
+
+        objectsToLoad.forEach((obj) =>
+          loadObject(obj.path, obj.x, obj.y, obj.z, obj.scale, obj.options)
+        );
+
+        // Loading Haybale Stacks
+        const haybalePositionsStack1 = [
+          { x: 30, y: 0, z: 12.5 },
+          { x: 29.9, y: 0, z: 11 },
+          { x: 30, y: 1.3, z: 10.25 },
+          { x: 30, y: 0, z: 9.5 },
+          { x: 29.5, y: 0.8, z: 7.95, rotation: { x: 0, y: 0, z: 270 } },
+          { x: 31.7, y: 0, z: 12.5 },
+          { x: 31.8, y: 0, z: 11 },
+          { x: 31.7, y: 1.3, z: 10.25 },
+          { x: 30.8, y: 1.3, z: 11.75 },
+          { x: 31.7, y: 0, z: 9.5 },
+          { x: 31, y: 0.8, z: 7.95, rotation: { x: 0, y: 0, z: 270 } },
+        ];
+
+        const haybalePositionsStack2 = [
+          { x: 29.9, y: 0, z: 19.5 },
+          { x: 30, y: 0, z: 18 },
+          { x: 30.1, y: 0, z: 21 },
+          { x: 30, y: 0, z: 22.5 },
+          { x: 29.9, y: 1.3, z: 20.25 },
+          { x: 30, y: 1.3, z: 21.75 },
+          { x: 30, y: 0, z: 16.5 },
+          { x: 31.7, y: 0, z: 19.5 },
+          { x: 31.7, y: 0, z: 18 },
+          { x: 31.8, y: 0, z: 21 },
+          { x: 31.7, y: 0, z: 22.5 },
+          { x: 31.7, y: 1.3, z: 18.75 },
+          { x: 31.8, y: 1.3, z: 20.25 },
+          { x: 31.8, y: 1.3, z: 21.75 },
+          { x: 31.8, y: 2.6, z: 19.75 },
+          { x: 31.8, y: 2.6, z: 21.25 },
+          { x: 31.7, y: 0, z: 16.5 },
+        ];
+
+        const haybaleRotation = { x: 0, y: 0, z: 270 };
+
+        haybalePositionsStack1.forEach((pos) =>
+          loadObject("./textures/big_haybale.glb", pos.x, pos.y, pos.z, 1, {
+            rotation: pos.rotation,
+          })
+        );
+        haybalePositionsStack2.forEach((pos) =>
+          loadObject("./textures/big_haybale.glb", pos.x, pos.y, pos.z, 1, {
+            rotation: pos.rotation,
+          })
+        );
+
+        loadObject("./textures/shovel.glb", 29.5, 1, 15.5, 1.5, {
+          rotation: { x: 45, y: 90, z: 90 },
+        });
+        loadObject("./textures/harvester_noleh_kiri.glb", -5, 0.1, -18, 1, {
+          rotation: { x: 0, y: 0, z: 0 },
+        });
+
+        // Clouds Loading
+        const cloudFiles = [
+          "./textures/cloud_1.glb",
+          "./textures/cloud_2.glb",
+          "./textures/cloud_3.glb",
+          "./textures/cloud_4.glb",
+        ];
+
+        function loadCloud(cloudFile, x, y, z) {
+          world.loaders.gltfLoader.load(cloudFile, function (gltf) {
+            var cloud = gltf.scene;
+            cloud.receiveShadow = false;
+            cloud.position.set(x, y, z);
+            cloud.scale.set(5, 5, 5);
+            cloud.traverse(function (node) {
+              if (node.isMesh) {
+                node.castShadow = true;
+              }
+            });
+            world.scene.add(cloud);
+            world.environment.clouds.push(cloud);
+          });
+        }
+
+        const numClouds = 30;
+
+        for (let i = 0; i < numClouds; i++) {
+          const cloudFile = cloudFiles[i % cloudFiles.length];
+          const x = Math.random() * 500 - 200;
+          const y = Math.random() * 20 + 30;
+          const z = Math.random() * 500 - 200;
+          loadCloud(cloudFile, x, y, z);
+        }
+
+        world.scene.add(world.lighting.ambientLight);
+
+        // Floor Loading
+        const floorGeometry = new THREE.PlaneGeometry(250, 250);
+        const floorMaterial = new THREE.MeshStandardMaterial({
+          color: 0x527e1c,
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.receiveShadow = true;
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(0, 0, 0);
+        world.scene.add(floor);
+
+        // Scene Background and Fog
+        world.scene.background = new THREE.Color(0x87ceeb);
+        world.scene.fog = new THREE.Fog(0x909090, 50, 150);
+        // Window Resize Event
+        window.addEventListener("resize", () => {
+          world.camera.aspect = window.innerWidth / window.innerHeight;
+          world.camera.updateProjectionMatrix();
+          world.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        world.camera = new THREE.PerspectiveCamera(
+          50,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        world.camera.position.set(20, 20, 0);
+        world.truck = world.interaction.objects.find((o) => o.sName.includes("low_poly_truck"));
+        world.harvester = world.interaction.objects.find((o) => o.sName.includes("harvester"));
+        const controls = new THREE.PointerLockControls(
+          world.camera,
+          document.body
+        );
+        world.scene.add(controls.getObject());
+        let interactibleObject = world.camera;
+        window.addEventListener("mousedown", () => controls.lock(), false);
+        document.addEventListener(
+          "pointerlockchange",
+          () => {
+            controls.enabled = document.pointerLockElement === document.body;
+          },
+          false
+        );
+
+        function enterVehicle(vehicleName, mode, switchMode, position) {
+          let vehicle = null;
+          if (vehicleName == "low_poly_truck") {
+            vehicle = world.truck;
+          } else if (vehicleName == "harvester") {
+            vehicle = world.harvester;
+          }
+          const distance = interactibleObject.position.distanceTo(
+            vehicle.position
+          );
+          if (!mode && distance < 5) {
+            interactibleObject = vehicle;
+            mode = true;
+            switchMode();
+          } else if (mode) {
+            interactibleObject = world.camera;
+            mode = false;
+            switchToFirstPersonMode();
+            world.camera.position.copy(position);
+          }
+        }
+
+        function toggleDoor(doorName, mode, openRotate, closeRotate) {
+          const door = objects.find((o) => o.sName.includes(doorName));
+          const distance = interactibleObject.position.distanceTo(
+            door.position
+          );
+          if (!mode && distance < 10 && !openRotate) {
+            mode = true;
+            openRotate = true;
+          } else if (mode && distance < 10 && !closeRotate) {
+            mode = false;
+            closeRotate = true;
+          }
+        }
+
+        window.addEventListener(
+          "keydown",
+          (event) => {
+            switch (event.keyCode) {
+              case 87: // W
+                moveForward = true;
+                break;
+              case 65: // A
+                moveLeft = true;
+                break;
+              case 83: // S
+                moveBackward = true;
+                break;
+              case 68: // D
+                moveRight = true;
+                break;
+              case 69: // E buat enter tractor/harverset
+                if (!truckMode) {
+                  enterVehicle(
+                    "harvester",
+                    harvesterMode,
+                    switchToharvesterMode,
+                    { x: harvester.position.x, y: 7, z: harvester.position.z }
+                  );
+                }
+                if (!harvesterMode) {
+                  enterVehicle("low_poly_truck", truckMode, switchTotruckMode, {
+                    x: truck.position.x + 2,
+                    y: 5,
+                    z: truck.position.z + 2,
+                  });
+                }
+                break;
+              case 70: // F buat buka Barn Door
+                toggleDoor(
+                  "Barn",
+                  barnDoorMode,
+                  barnDoorOpenRotate,
+                  barnDoorCloseRotate
+                );
+                break;
+              case 81: // Q  lampu mobil
+                if (harvesterMode || truckMode) {
+                  spotlight.intensity = spotlight.intensity === 0 ? 1 : 0;
+                }
+                break;
+              case 32: // Tombol Space
+                if (!isJumping) {
+                  isJumping = true;
+                  jumpStartTime = Date.now();
+                  jumpStartY = controls.getObject().position.y;
+                }
+                break;
+              case 51:
+                switchToFlyMode();
+                world.camera.position.y = 50;
+                break;
+              case 52:
+                switchToFirstPersonMode();
+                break;
+            }
+          },
+          false
+        );
+
+        window.addEventListener(
+          "keyup",
+          (event) => {
+            switch (event.keyCode) {
+              case 87: // W
+                moveForward = false;
+                break;
+              case 65: // A
+                moveLeft = false;
+                break;
+              case 83: // S
+                moveBackward = false;
+                break;
+              case 68: // D
+                moveRight = false;
+                break;
+            }
+          },
+          false
+        );
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        world.renderer.render(world.scene, world.camera);
+      }
+
+      init();
+      animate();
+    </script>
+  </body>
+</html>
+a

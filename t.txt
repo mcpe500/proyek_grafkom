@@ -1,0 +1,21 @@
+since this code is only collision detection, how to add it so that it is collision handling, so it's like a game where i can't go through the object that the result is true.
+please give me the THREE JS OCTREE CODE
+
+      function checkCollision() {
+        playerCollider.start.set(
+          interactibleObject.position.x - 1,
+          interactibleObject.position.y,
+          interactibleObject.position.z - 1
+        );
+        playerCollider.end.set(
+          interactibleObject.position.x + 1,
+          interactibleObject.position.y + 10, // Assuming the height of the capsule is 10
+          interactibleObject.position.z + 1
+        );
+
+        const result = worldOctree.capsuleIntersect(playerCollider);
+        if (result) {
+          console.log("COLLIDED");
+        }
+        return result;
+      }
