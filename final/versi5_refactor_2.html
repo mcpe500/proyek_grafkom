@@ -200,49 +200,36 @@
         baling_baling_windmill: null,
         lotus: null,
         goose: null,
+        previousPosition: new THREE.Vector3(),
       };
+
+      // Function to check for collisions
       function checkCollision() {
-        // Check if the interactibleObject is a truck or harvester
+        // Retrieve the interactible object and the objects to check for collision
+        const interactibleObject = world.interaction.interactibleObject;
+        const objects = world.interaction.objects;
 
-        if (world.interaction.interactibleObject.sName !== "truck") {
-        } else if (world.interaction.interactibleObject.sName !== "harvester") {
-        } else if (world.interaction.interactibleObject == camera) {
-        }
-        const directions = [
-          new THREE.Vector3(0, 0, -1), // forward
-          new THREE.Vector3(0, 0, 1), // backward
-          new THREE.Vector3(-1, 0, 0), // left
-          new THREE.Vector3(1, 0, 0), // right
-          new THREE.Vector3(-1, 0, -1), // forward left
-          new THREE.Vector3(1, 0, -1), // forward right
-          new THREE.Vector3(-1, 0, 1), // backward left
-          new THREE.Vector3(1, 0, 1), // backward right
-        ];
+        // Get the direction of movement of the interactible object
+        const direction = interactibleObject.userData.velocity
+          .clone()
+          .normalize();
 
-        const raycasters = directions.map(
-          (direction) =>
-            new THREE.Raycaster(
-              world.interaction.interactibleObject.position,
-              direction
-            )
-        );
+        // Create a raycaster
+        const raycaster = new THREE.Raycaster();
 
-        let intersected = false;
-        //  ADA ERROR DISEKITAR SINI
-        raycasters.forEach((raycaster) => {
-          const intersects = raycaster.intersectObjects(
-            world.interaction.objects,
-            true
-          );
-          if (intersects.length > 0 && intersects[0].distance < 1) {
-            intersected = true;
-          }
-        });
+        // Set the raycaster's origin to the interactible object's position and its direction to the direction of movement
+        raycaster.set(interactibleObject.position, direction);
 
-        if (intersected) {
-          world.interaction.interactibleObject.position.copy(previousPosition);
-        } else {
-          previousPosition.copy(world.interaction.interactibleObject.position);
+        // Perform the raycasting
+        const intersects = raycaster.intersectObjects(objects, true);
+
+        // If there are intersections and the first intersection is within a reasonable distance (e.g., less than the movement step size)
+        if (
+          intersects.length > 0 &&
+          intersects[0].distance < interactibleObject.userData.velocity.length()
+        ) {
+          // Stop the movement of the interactible object
+          interactibleObject.userData.velocity.set(0, 0, 0);
         }
       }
       function rotate(object, { x = 0, y = 0, z = 0 } = {}) {
@@ -385,6 +372,7 @@
           const geometry = new THREE.ShapeGeometry(world.environment.pondShape);
           const material = new THREE.MeshBasicMaterial({ color: 0x00aaff });
           const mesh = new THREE.Mesh(geometry, material);
+          mesh.rotation.x = -Math.PI / 2;
           mesh.position.set(x, y, z);
           mesh.scale.set(scale, scale, scale);
           world.scene.add(mesh);
@@ -937,16 +925,16 @@
           (event) => {
             switch (event.keyCode) {
               case 87: // W
-                moveForward = true;
+                world.movement.forward = true;
                 break;
               case 65: // A
-                moveLeft = true;
+                world.movement.left = true;
                 break;
               case 83: // S
-                moveBackward = true;
+                world.movement.backward = true;
                 break;
               case 68: // D
-                moveRight = true;
+                world.movement.right = true;
                 break;
               case 69: // E buat enter tractor/harverset
                 if (!world.modes.truckMode) {
@@ -979,15 +967,16 @@
                 );
                 break;
               case 81: // Q  lampu mobil
-                if (harvesterMode || truckMode) {
+                if (world.modes.harvesterMode || world.modes.truckMode) {
                   spotlight.intensity = spotlight.intensity === 0 ? 1 : 0;
                 }
                 break;
               case 32: // Tombol Space
                 if (!world.movement.isJumping) {
                   world.movement.isJumping = true;
-                  jumpStartTime = Date.now();
-                  jumpStartY = controls.getObject().position.y;
+                  world.movement.jumpStartTime = Date.now();
+                  world.movement.jumpStartY =
+                    world.interaction.interactibleObject.position.y;
                 }
                 break;
               case 51:
@@ -1007,16 +996,16 @@
           (event) => {
             switch (event.keyCode) {
               case 87: // W
-                moveForward = false;
+                world.movement.forward = false;
                 break;
               case 65: // A
-                moveLeft = false;
+                world.movement.left = false;
                 break;
               case 83: // S
-                moveBackward = false;
+                world.movement.backward = false;
                 break;
               case 68: // D
-                moveRight = false;
+                world.movement.right = false;
                 break;
             }
           },
@@ -1026,15 +1015,17 @@
 
       function animateJump() {
         currentTime = Date.now();
-        elapsedTime = currentTime - jumpStartTime;
-        if (elapsedTime < jumpDuration) {
-          progress = elapsedTime / jumpDuration;
-          jumpHeightOffset = jumpHeight * Math.sin(progress * Math.PI);
-          world.controls.getObject().position.y = jumpStartY + jumpHeightOffset;
+        elapsedTime = currentTime - world.movement.jumpStartTime;
+        if (elapsedTime < world.movement.jumpDuration) {
+          progress = elapsedTime / world.movement.jumpDuration;
+          jumpHeightOffset =
+            world.movement.jumpHeight * Math.sin(progress * Math.PI);
+          world.controls.getObject().position.y =
+            world.movement.jumpStartY + jumpHeightOffset;
           requestAnimationFrame(animateJump);
         } else {
-          world.controls.getObject().position.y = jumpStartY;
-          isJumping = false;
+          world.controls.getObject().position.y = world.movement.jumpStartY;
+          world.movement.isJumping = false;
         }
       }
 
@@ -1107,6 +1098,10 @@
         world.lighting.moon.light.position.y =
           Math.sin(world.lighting.sun.angle) * world.modes.orbitRadius;
         world.lighting.moon.light.position.z = 0;
+
+        // world.lighting.moon.object.position.x = Math.cos(world.lighting.sun.angle) * world.modes.orbitRadius;
+        // world.lighting.moon.object.position.y = Math.sin(world.lighting.sun.angle) * world.modes.orbitRadius;
+        // world.lighting.moon.object.position.z = 0;
 
         moon = world.lighting.moon.object;
         if (moon) {
@@ -1217,6 +1212,13 @@
           }
         }
         checkCollision();
+        if (
+          world.interaction.interactibleObject.userData.velocity.length() > 0
+        ) {
+          world.interaction.interactibleObject.position.add(
+            world.interaction.interactibleObject.userData.velocity
+          );
+        }
         if (world.modes.harvesterMode) {
           wheatCollision();
           harvesterCollision();
@@ -1224,33 +1226,28 @@
           var harvesterSpeed = moveSpeed;
           var rotationSpeed = 0.01;
           const newPosition = harvester.position.clone();
-          if (moveForward) {
+          if (world.movement.forward) {
             harvester.position.add(
               moveVector.clone().multiplyScalar(harvesterSpeed)
             );
-            if (moveLeft) {
+            if (world.movement.left) {
               harvester.rotateY(rotationSpeed);
             }
-            if (moveRight) {
+            if (world.movement.right) {
               harvester.rotateY(-rotationSpeed);
             }
           }
-          if (moveBackward) {
+          if (world.movement.backward) {
             harvester.position.sub(
               moveVector.clone().multiplyScalar(harvesterSpeed)
             );
-            if (moveLeft) {
+            if (world.movement.left) {
               harvester.rotateY(-rotationSpeed);
             }
-            if (moveRight) {
+            if (world.movement.right) {
               harvester.rotateY(rotationSpeed);
             }
           }
-          // Check for collision with the new position
-          // const intersected = checkCollision(newPosition, harvester);
-          // if (intersected) {
-          //   harvester.position.copy(newPosition);
-          // }
 
           harvester.position.y = harvester_position.y;
           // harvester.position.y = harvester_position.y + 1;
@@ -1272,13 +1269,13 @@
             .add(harvesterDirection.clone().multiplyScalar(cameraDistance));
           spotlight.position.copy(lightPosition);
           spotlight.target.position.copy(lightTarget.clone());
-        } else if (truckMode) {
+        } else if (world.modes.truckMode) {
           wheatCollision();
           var truck = objects.find((o) => o.sName.includes("low_poly_truck"));
           var truckSpeed = moveSpeed * 1.5;
           var rotationSpeed = 0.025;
           const newPosition = truck.position.clone();
-          if (moveForward) {
+          if (world.movement.forward) {
             truck.position.add(moveVector.clone().multiplyScalar(truckSpeed));
             if (moveLeft) {
               truck.rotateY(rotationSpeed);
@@ -1296,12 +1293,6 @@
               truck.rotateY(rotationSpeed);
             }
           }
-          // const intersected = checkCollision(newPosition, truck);
-
-          // if (intersected) {
-          //   truck.position.copy(newPosition);
-          // }
-
           truck.position.y = 1.15;
           var truckDirection = new THREE.Vector3();
           truck.getWorldDirection(truckDirection);
@@ -1323,18 +1314,18 @@
           spotlight.target.position.copy(lightTarget.clone());
         } else {
           const newPosition = world.controls.getObject().position.clone();
-          if (isJumping) {
+          if (world.movement.isJumping) {
             animateJump();
           }
-          if (moveForward)
+          if (world.movement.forward)
             world.controls
               .getObject()
               .position.add(moveVector.clone().multiplyScalar(moveSpeed));
-          if (moveBackward)
+          if (world.movement.backward)
             world.controls
               .getObject()
               .position.sub(moveVector.clone().multiplyScalar(moveSpeed));
-          if (moveLeft)
+          if (world.movement.left)
             world.controls
               .getObject()
               .position.add(
@@ -1344,7 +1335,7 @@
                   .negate()
                   .multiplyScalar(moveSpeed)
               );
-          if (moveRight)
+          if (world.movement.right)
             world.controls
               .getObject()
               .position.add(
@@ -1354,7 +1345,6 @@
                   .multiplyScalar(moveSpeed)
               );
         }
-
         world.renderer.render(world.scene, world.camera);
       }
 
