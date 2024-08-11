@@ -46,3 +46,15 @@ Alternatively, you can view the project online via free hosting:
 ## Acknowledgements
 
 This project was made possible with the help of **ChatGPT**, **Claude**, and **GitHub Copilot**. These tools provided support in coding and problem-solving, allowing us to expedite the development process while ensuring a deep and thorough understanding of Three.js concepts.
+
+## Contributors
+
+This project was developed by a dedicated 2-person team:
+
+### 👩‍💻 [Joy Gemilang](https://www.linkedin.com/in/joy-gemilang-b6765830a/)
+- **Username:** jou170
+- [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/joy-gemilang-b6765830a/)
+
+### 👨‍💻 [Ivan Santoso](https://www.linkedin.com/in/ivan-santoso-53bb27223/)
+- **Username:** mcpe500
+- [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/ivan-santoso-53bb27223/)
